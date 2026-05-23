@@ -59,33 +59,27 @@ X-Ray_Resume/
 
 ---
 
-## 後端設定與啟動
+## Demo 操作流程
 
-### 1. 進入後端資料夾
+### 1. 啟動後端
+
+在第一個 terminal：
 
 ```bash
 cd backend
-```
-
-### 2. 建立 Python 環境
-
-如果使用 Conda：
-
-```bash
-conda env create -f environment.yml
-conda activate webapp
-```
-
-如果沒有 Conda，也可以使用 Python venv：
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install supabase
 ```
 
----
+如果使用 Conda：
+
+```bash
+cd backend
+conda env create -f environment.yml
+conda activate webapp
+```
 
 ## Supabase 環境變數設定
 
@@ -95,8 +89,6 @@ pip install supabase
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_KEY=your-legacy-anon-public-key
 ```
-
----
 
 ## 啟動後端
 
@@ -108,92 +100,6 @@ uvicorn app.main:app --reload
 
 ```txt
 http://127.0.0.1:8000/docs
-```
-
-可以先測試：
-
-```txt
-GET /health
-```
-
-如果回傳：
-
-```json
-{
-  "status": "ok"
-}
-```
-
-代表後端啟動成功。
-
----
-
-## 後端測試資料
-
-開啟 Swagger UI：
-
-```txt
-http://127.0.0.1:8000/docs
-```
-
-依序執行：
-
-```txt
-POST /dev/seed-resume
-POST /dev/seed-job
-GET /analyze
-```
-
-如果 `GET /analyze` 回傳分析結果，代表後端與 Supabase 已成功連線。
-
----
-
-## 前端設定與啟動
-
-### 1. 進入前端資料夾
-
-```bash
-cd frontend
-```
-
-### 2. 安裝套件
-
-```bash
-npm install
-```
-
-### 3. 啟動前端
-
-```bash
-npm run dev
-```
-
-啟動後開啟：
-
-```txt
-http://localhost:5173/
-```
-
----
-
-## Demo 操作流程
-
-### 1. 啟動後端
-
-在第一個 terminal：
-
-```bash
-cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload
-```
-
-如果使用 Conda：
-
-```bash
-cd backend
-conda activate webapp
-uvicorn app.main:app --reload
 ```
 
 ---
@@ -242,6 +148,34 @@ http://localhost:5173/
 → 檢視履歷 / 修改履歷
 → 儲存變更
 → 查看分析
+```
+
+---
+
+## 前端設定與啟動
+
+### 1. 進入前端資料夾
+
+```bash
+cd frontend
+```
+
+### 2. 安裝套件
+
+```bash
+npm install
+```
+
+### 3. 啟動前端
+
+```bash
+npm run dev
+```
+
+啟動後開啟：
+
+```txt
+http://localhost:5173/
 ```
 
 ---
