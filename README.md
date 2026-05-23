@@ -1,4 +1,14 @@
 # Readme
+# X-Ray Resume
+X-Ray Resume 是一個可解釋的履歷分析與職缺匹配決策支援 Web 平台。  
+平台協助求職者檢視履歷、了解技能缺口與職缺適配度，也可作為企業 HR 初步理解候選人與職缺需求之間關聯的輔助工具。
+
+## 專案結構
+X-Ray_Resume/
+├── backend/      # FastAPI 後端
+├── frontend/     # React + Vite 前端
+├── README.md
+└── .gitignore
 
 ## 使用方式
 ### 後端
