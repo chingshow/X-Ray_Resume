@@ -245,6 +245,20 @@ http://localhost:5173/
 
 ---
 
+## 開發狀態
+
+目前專案為課程 / Demo 階段版本。
+
+核心重點為：
+
+- 可解釋履歷分析
+- 職缺匹配決策支援
+- 技能缺口提示
+- 前後端 API 串接
+- Supabase 資料儲存
+
+---
+
 ## 目前功能
 
 ### 求職者端
@@ -268,76 +282,6 @@ http://localhost:5173/
 - `POST /dev/seed-resume`
 - `POST /dev/seed-job`
 - `GET /analyze`
-
----
-
-## 目前限制
-
-目前分析模型為 Mock AI 分析，並非真正機器學習模型。
-
-目前已完成：
-
-```txt
-前端修改履歷
-→ 儲存至 Supabase
-→ 後端讀取最新履歷
-→ 產生分析文字
-```
-
-但目前仍有部分限制：
-
-- `match_score` 若尚未改成動態計算，分數可能仍為固定值
-- 職缺目前由後端抓取 Supabase 最新一筆 `job_postings`
-- HR 端頁面尚未完整實作
-- 尚未實作正式登入 / 註冊
-- RLS 權限目前可能為開發階段設定
-
----
-
-## 建議後續開發
-
-### 1. 動態匹配分數
-
-將後端原本固定的 `match_score` 改為根據技能匹配比例計算，例如：
-
-```python
-matched_skills = [s for s in required_skills if s in skills]
-missing_skills = [s for s in required_skills if s not in skills]
-
-skill_score = len(matched_skills) / len(required_skills) if required_skills else 0
-match_score = round(skill_score * 100)
-```
-
-### 2. 履歷更新 API
-
-目前前端使用 `POST /resume` 新增履歷。後續可以新增：
-
-```txt
-GET /resume/latest
-PUT /resume/{resume_id}
-```
-
-讓履歷可以被讀取與更新，而不是每次新增一筆。
-
-### 3. HR 端功能
-
-後續可加入：
-
-- 建立職缺
-- 管理職缺
-- 查看候選人分析
-- 候選人排序
-- 主動推薦求職者
-
-### 4. 登入與權限
-
-後續可串接 Supabase Auth，區分：
-
-- 求職者
-- HR
-- 管理者
-
-並重新啟用 RLS policies。
 
 ---
 
@@ -368,17 +312,3 @@ http://127.0.0.1:8000
 ```txt
 http://localhost:5173
 ```
-
----
-
-## 開發狀態
-
-目前專案為課程 / Demo 階段版本。
-
-核心重點為：
-
-- 可解釋履歷分析
-- 職缺匹配決策支援
-- 技能缺口提示
-- 前後端 API 串接
-- Supabase 資料儲存
