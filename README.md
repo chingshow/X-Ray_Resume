@@ -61,7 +61,16 @@ X-Ray_Resume/
 
 ## Demo 操作流程
 
-### 1. 啟動後端
+### 1. Supabase 環境變數設定
+
+在 `backend/` 資料夾中建立 `.env` 檔案：
+
+```env
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_KEY=your-legacy-anon-public-key
+```
+
+### 2. 啟動後端
 
 在第一個 terminal：
 
@@ -71,6 +80,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install supabase
+uvicorn app.main:app --reload
 ```
 
 如果使用 Conda：
@@ -79,20 +89,6 @@ pip install supabase
 cd backend
 conda env create -f environment.yml
 conda activate webapp
-```
-
-## Supabase 環境變數設定
-
-在 `backend/` 資料夾中建立 `.env` 檔案：
-
-```env
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your-legacy-anon-public-key
-```
-
-## 啟動後端
-
-```bash
 uvicorn app.main:app --reload
 ```
 
