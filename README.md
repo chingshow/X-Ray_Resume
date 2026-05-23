@@ -1,6 +1,7 @@
 # X-Ray Resume
 
 X-Ray Resume 是一個可解釋的履歷分析與職缺匹配決策支援 Web 平台。
+
 平台協助求職者檢視履歷、了解技能缺口與職缺適配度，也可作為企業 / HR 初步理解候選人與職缺需求之間關聯的輔助工具。
 
 ---
@@ -58,54 +59,6 @@ X-Ray_Resume/
 
 ---
 
-## 注意事項
-
-請勿將以下檔案或資料夾上傳到 GitHub：
-
-```txt
-backend/.env
-backend/.venv/
-frontend/node_modules/
-frontend/dist/
-```
-
-`.env` 內含 Supabase 連線資訊，不應公開上傳。
-
----
-
-## .gitignore 建議內容
-
-```gitignore
-# Environment variables
-.env
-backend/.env
-
-# Python virtual environments
-venv/
-.venv/
-backend/venv/
-backend/.venv/
-
-# Python cache
-__pycache__/
-backend/__pycache__/
-**/__pycache__/
-*.pyc
-
-# Frontend dependencies and build
-frontend/node_modules/
-frontend/dist/
-
-# Logs
-*.log
-
-# IDE / OS files
-.idea/
-.DS_Store
-```
-
----
-
 ## 後端設定與啟動
 
 ### 1. 進入後端資料夾
@@ -142,20 +95,6 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_KEY=your-legacy-anon-public-key
 ```
 
-注意：
-
-- `SUPABASE_URL` 請使用 Supabase Project URL
-- `SUPABASE_URL` 不要包含 `/rest/v1/`
-- `SUPABASE_KEY` 請使用 Supabase 的 Legacy anon public key
-- `.env` 不要上傳到 GitHub
-
-可以另外提供 `backend/.env.example`：
-
-```env
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your-legacy-anon-public-key
-```
-
 ---
 
 ## 啟動後端
@@ -185,30 +124,6 @@ GET /health
 ```
 
 代表後端啟動成功。
-
----
-
-## 建立 Supabase 資料表
-
-請先到 Supabase SQL Editor 執行 `backend/schema.sql` 內的 SQL，建立資料表。
-
-主要資料表包含：
-
-- profiles
-- resumes
-- job_postings
-- analysis_results
-- applications
-
-開發 Demo 階段若遇到 RLS 權限問題，可以先在 Supabase SQL Editor 執行：
-
-```sql
-ALTER TABLE public.resumes DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.job_postings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.analysis_results DISABLE ROW LEVEL SECURITY;
-```
-
-正式上線前應重新啟用 RLS 並設定合適的 policies。
 
 ---
 
@@ -479,54 +394,9 @@ PUT /resume/{resume_id}
 
 ## 常見問題
 
-### 1. 後端出現 `supabase_url is required`
-
-代表 `backend/.env` 沒有設定或沒有被正確讀取。請確認：
-
-```env
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_KEY=your-legacy-anon-public-key
-```
-
 ---
 
-### 2. 後端出現 `Invalid URL`
-
-通常是 `SUPABASE_URL` 格式錯誤。請確認不要使用：
-
-```txt
-https://your-project-ref.supabase.co/rest/v1/
-```
-
-正確格式是：
-
-```txt
-https://your-project-ref.supabase.co
-```
-
----
-
-### 3. 後端出現 RLS 權限錯誤
-
-如果 Demo 階段遇到：
-
-```txt
-new row violates row-level security policy
-```
-
-可以先在 Supabase SQL Editor 執行：
-
-```sql
-ALTER TABLE public.resumes DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.job_postings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.analysis_results DISABLE ROW LEVEL SECURITY;
-```
-
-正式上線前請重新啟用 RLS 並設定 policies。
-
----
-
-### 4. 前端畫面沒有樣式
+### 1. 前端畫面沒有樣式
 
 請確認前端已安裝 Tailwind：
 
@@ -542,7 +412,7 @@ npm install tailwindcss @tailwindcss/vite
 
 ---
 
-### 5. 前端無法呼叫後端
+### 2. 前端無法呼叫後端
 
 請確認：
 
