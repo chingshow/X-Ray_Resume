@@ -175,57 +175,6 @@ http://localhost:5173/
 
 ---
 
-## 前後端串接方式
-
-前端透過 Vite proxy 呼叫後端 API。
-
-`frontend/vite.config.js` 需要包含：
-
-```js
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
-      },
-    },
-  },
-});
-```
-
-前端呼叫：
-
-```txt
-/api/analyze
-```
-
-會被轉送到：
-
-```txt
-http://127.0.0.1:8000/analyze
-```
-
-前端呼叫：
-
-```txt
-/api/resume
-```
-
-會被轉送到：
-
-```txt
-http://127.0.0.1:8000/resume
-```
-
----
-
 ## Demo 操作流程
 
 ### 1. 啟動後端
@@ -394,20 +343,12 @@ PUT /resume/{resume_id}
 
 ## 常見問題
 
----
-
 ### 1. 前端畫面沒有樣式
 
 請確認前端已安裝 Tailwind：
 
 ```bash
 npm install tailwindcss @tailwindcss/vite
-```
-
-並確認 `frontend/src/index.css` 包含：
-
-```css
-@import "tailwindcss";
 ```
 
 ---
@@ -427,8 +368,6 @@ http://127.0.0.1:8000
 ```txt
 http://localhost:5173
 ```
-
-3. `vite.config.js` 有設定 `/api` proxy。
 
 ---
 
