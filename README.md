@@ -103,6 +103,8 @@ uvicorn app.main:app --reload
 ```bash
 cd frontend
 npm install
+# 若前端畫面沒有樣式
+# npm install tailwindcss @tailwindcss/vite
 npm run dev
 ```
 
@@ -180,15 +182,3 @@ http://localhost:5173/
 - `POST /dev/seed-resume`
 - `POST /dev/seed-job`
 - `GET /analyze`
-
----
-
-## 常見問題
-
-### 1. 前端畫面沒有樣式
-
-確認前端已安裝 Tailwind：
-
-```bash
-npm install tailwindcss @tailwindcss/vite
-```
