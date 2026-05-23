@@ -96,26 +96,21 @@ conda activate webapp
 uvicorn app.main:app --reload
 ```
 
-啟動後開啟：
-
-```txt
-http://127.0.0.1:8000/docs
-```
-
 ---
 
-### 2. 啟動前端
+### 3. 啟動前端
 
 在第二個 terminal：
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
 ---
 
-### 3. 建立測試資料
+### 4. 建立測試資料
 
 開啟：
 
@@ -128,11 +123,13 @@ http://127.0.0.1:8000/docs
 ```txt
 POST /dev/seed-resume
 POST /dev/seed-job
+GET /analyze
 ```
+如果 `GET /analyze` 回傳分析結果，代表後端與 Supabase 已成功連線。
 
 ---
 
-### 4. 操作前端
+### 5. 操作前端
 
 開啟：
 
@@ -148,34 +145,6 @@ http://localhost:5173/
 → 檢視履歷 / 修改履歷
 → 儲存變更
 → 查看分析
-```
-
----
-
-## 前端設定與啟動
-
-### 1. 進入前端資料夾
-
-```bash
-cd frontend
-```
-
-### 2. 安裝套件
-
-```bash
-npm install
-```
-
-### 3. 啟動前端
-
-```bash
-npm run dev
-```
-
-啟動後開啟：
-
-```txt
-http://localhost:5173/
 ```
 
 ---
