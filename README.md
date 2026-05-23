@@ -96,8 +96,6 @@ conda activate webapp
 uvicorn app.main:app --reload
 ```
 
----
-
 ### 3. 啟動前端
 
 在第二個 terminal：
@@ -107,8 +105,6 @@ cd frontend
 npm install
 npm run dev
 ```
-
----
 
 ### 4. 建立測試資料
 
@@ -126,8 +122,6 @@ POST /dev/seed-job
 GET /analyze
 ```
 如果 `GET /analyze` 回傳分析結果，代表後端與 Supabase 已成功連線。
-
----
 
 ### 5. 操作前端
 
