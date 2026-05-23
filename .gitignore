@@ -1,9 +1,26 @@
+# Environment variables
 .env
-__pycache__/
+backend/.env
+
+# Python virtual environments
 venv/
+.venv/
 backend/venv/
+backend/.venv/
+
+# Python cache
+__pycache__/
 backend/__pycache__/
 **/__pycache__/
 *.pyc
-.env
+
+# Frontend dependencies and build
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# IDE / OS files
 .idea/
+.DS_Store
