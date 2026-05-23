@@ -187,26 +187,8 @@ http://localhost:5173/
 
 ### 1. 前端畫面沒有樣式
 
-請確認前端已安裝 Tailwind：
+確認前端已安裝 Tailwind：
 
 ```bash
 npm install tailwindcss @tailwindcss/vite
-```
-
----
-
-### 2. 前端無法呼叫後端
-
-請確認：
-
-1. 後端正在執行：
-
-```txt
-http://127.0.0.1:8000
-```
-
-2. 前端正在執行：
-
-```txt
-http://localhost:5173
 ```
