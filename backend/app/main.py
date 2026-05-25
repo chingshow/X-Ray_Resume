@@ -20,7 +20,7 @@ supabase: Client = create_client(url, key)
 
 # --- 完美對接 SQL 的 Pydantic 模型 (求職者端) ---
 class ResumeCreate(BaseModel):
-    user_id: str                      # 對應 profiles(id)
+    user_id: Optional[str] = None                      # 對應 profiles(id)
     full_name: Optional[str] = None   # 姓名
     education: Optional[str] = None   # 學歷
     experience: Optional[List[Dict[str, Any]]] = None  # 工作經歷 (jsonb)
