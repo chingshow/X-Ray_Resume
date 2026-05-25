@@ -446,7 +446,7 @@ export default function XRayResumeJobseekerFrontend() {
               <Field label="姓名" value={resume.full_name} onChange={(v) => setResumeField("full_name", v)} disabled={readOnly} />
               <Field label="目標職位" value={resume.target_role} onChange={(v) => setResumeField("target_role", v)} disabled={readOnly} />
               <Field label="學歷" value={resume.education} onChange={(v) => setResumeField("education", v)} multiline disabled={readOnly} />
-              <Field label="技能，逗號分隔" value={resume.skills} onChange={(v) => setResumeField("skills", v)} multiline disabled={readOnly} />
+              <Field label="技能 (逗號分隔)" value={resume.skills} onChange={(v) => setResumeField("skills", v)} multiline disabled={readOnly} />
               <Field label="證照" value={resume.certifications} onChange={(v) => setResumeField("certifications", v)} multiline disabled={readOnly} />
               <Field label="獎項 / 其他加分項" value={resume.awards} onChange={(v) => setResumeField("awards", v)} multiline disabled={readOnly} />
               <Field label="期望薪資" value={resume.expected_salary} onChange={(v) => setResumeField("expected_salary", v)} disabled={readOnly} />

@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import math
+import random
 
 load_dotenv()
 
@@ -210,7 +212,7 @@ def mock_ai_analysis(resume: dict, job: dict) -> dict:
             {"rank": 3, "skill": missing_skills[2] if len(missing_skills) > 2 else "英文能力",
              "reason": "跨國職缺加分，長期職涯必備"},
         ],
-        "match_score": 62,
+        "match_score": random.randint(60, 85),
     }
 
 
