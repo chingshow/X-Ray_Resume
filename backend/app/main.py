@@ -6,10 +6,18 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 import math
 import random
+from google import genai
+from google.genai import types
+import json
+import re
+
+
 
 load_dotenv()
 
 app = FastAPI(title="X-Ray Resume API", version="0.2.0")
+# 在 load_dotenv() 之後加入
+gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
@@ -138,11 +146,9 @@ def dev_seed_resume(data: DevResumeInput):
 
 @app.post("/dev/seed-job", tags=["🔧 開發測試"])
 def dev_seed_job(data: DevJobInput):
-    """【測試用】一鍵初始化固定職缺"""
-    # 職缺部分我們也可以給它一個固定 ID，方便對接
-    MOCK_JOB_ID = "33333333-3333-3333-3333-333333333333"
+    """【測試用】新增一筆職缺（每次都是全新一筆，不再覆蓋）"""
     payload = {
-        "id": MOCK_JOB_ID,
+        # 移除 "id": MOCK_JOB_ID 這行，讓 Supabase 自動產生 UUID
         "title": data.title,
         "required_skills": data.required_skills,
         "salary_range": data.salary_range,
@@ -150,10 +156,10 @@ def dev_seed_job(data: DevJobInput):
         "description": "負責設計與開發高併發後端服務，需具備雲端部署與系統架構設計能力。",
         "is_active": True,
     }
-    resp = supabase.table("job_postings").upsert(payload).execute()  # 改為 upsert
+    resp = supabase.table("job_postings").insert(payload).execute()  # upsert → insert
     if not resp.data:
         raise HTTPException(status_code=500, detail="新增失敗")
-    return {"message": "測試職缺初始化/覆蓋成功", "job_id": resp.data[0]["id"]}
+    return {"message": "測試職缺新增成功", "job_id": resp.data[0]["id"]}
 
 
 @app.delete("/dev/clear", tags=["🔧 開發測試"])
@@ -168,7 +174,6 @@ def dev_clear():
 # ===========================================================================
 # 📊 核心功能：AI 分析 (全面改為 Upsert 覆蓋機制)
 # ===========================================================================
-
 def mock_ai_analysis(resume: dict, job: dict) -> dict:
     """模擬 AI 回傳的分析結果 (保持不變)"""
     name = resume.get("full_name", "您")
@@ -216,24 +221,209 @@ def mock_ai_analysis(resume: dict, job: dict) -> dict:
     }
 
 
+def ai_analysis_with_gemini(resume: dict, job: dict) -> dict:
+    """呼叫 Gemini API 產生分析結果，回傳格式與原 mock 相同"""
+
+    # ── 資料前處理 ──────────────────────────────────────────
+    name          = resume.get("full_name", "求職者")
+    education     = resume.get("education", "（未填寫）")
+    skills        = resume.get("skills") or []
+    experience    = resume.get("experience") or []
+    projects      = resume.get("projects") or []
+    certifications = resume.get("certifications") or []
+    awards        = resume.get("awards") or []
+    preferences   = resume.get("preferences") or {}
+
+    job_title       = job.get("title", "目標職位")
+    required_skills = job.get("required_skills") or []
+    job_desc        = job.get("description", "（未填寫）")
+    min_exp         = job.get("min_experience", 0)
+    salary_range    = job.get("salary_range", "（未提供）")
+
+    missing_skills = [s for s in required_skills if s not in skills]
+
+    # ── 呼叫 Gemini ─────────────────────────────────────────
+    prompt = build_analysis_prompt(
+        name, education, skills, experience, projects,
+        certifications, awards, preferences,
+        job_title, required_skills, job_desc, min_exp, salary_range,
+        missing_skills
+    )
+
+    response = gemini_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+    )
+    raw_text = response.text
+
+    return parse_gemini_response(raw_text, missing_skills, job_title)
+
+    # ── 解析 JSON ────────────────────────────────────────────
+    return parse_gemini_response(raw_text, missing_skills, job_title)
+
+
+def build_analysis_prompt(
+    name, education, skills, experience, projects,
+    certifications, awards, preferences,
+    job_title, required_skills, job_desc, min_exp, salary_range,
+    missing_skills
+) -> str:
+
+    exp_str  = json.dumps(experience,     ensure_ascii=False)
+    proj_str = json.dumps(projects,       ensure_ascii=False)
+    pref_str = json.dumps(preferences,    ensure_ascii=False)
+
+    return f"""
+你是一位資深的人力資源顧問與職涯分析師，專精於台灣軟體業的人才評估。
+你的任務是針對一份求職者履歷與一則職缺，產出一份深度分析報告。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【求職者履歷資料】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+姓名：{name}
+學歷：{education}
+技能：{", ".join(skills) if skills else "（未填寫）"}
+工作經歷：{exp_str}
+專案作品：{proj_str}
+證照：{", ".join(certifications) if certifications else "（無）"}
+獎項：{", ".join(awards) if awards else "（無）"}
+求職偏好：{pref_str}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【目標職缺資料】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+職位名稱：{job_title}
+必要技能：{", ".join(required_skills) if required_skills else "（未填寫）"}
+職位描述：{job_desc}
+最低年資要求：{min_exp} 年
+薪資範圍：{salary_range}
+技能缺口（履歷中缺少的必要技能）：{", ".join(missing_skills) if missing_skills else "無"}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【分析任務說明】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+請根據以上資料完成以下四項分析，並以**繁體中文**回答：
+
+1. **情境模擬 (scenario_simulation)**
+   - 說明求職者目前的優勢與不足之處
+   - 模擬：若補強技能缺口，匹配分數可從現在提升多少（給出具體數字）
+   - 包含 SHAP 分析說明：條列每個面向（技能、學歷、年資、專案）對分數的影響
+   - 語氣：專業但親切，以「您」稱呼求職者，約 200-300 字
+
+2. **SHAP 權重值 (shap_values)**
+   - 計算四個維度對整體評分的貢獻比例
+   - 四者加總必須等於 1.0
+   - 維度：skill_match（技能匹配）、education（學歷）、experience（工作年資）、projects（專案/作品）
+   - 根據實際履歷內容調整比例，不要使用固定值
+
+3. **薪資影響分析 (salary_impact)**
+   - 根據目前技能評估市場薪資區間（以台灣市場為準，單位 NT$）
+   - 說明補強缺口技能後的薪資成長潛力（%提升幅度）
+   - 給出具體數字範圍，約 80-120 字
+
+4. **優先補強技能清單 (priority_skills)**
+   - 列出最重要的 3 項待補強技能
+   - 每項包含：排名(rank)、技能名稱(skill)、補強理由(reason，約 20-30 字)
+   - 優先順序依「對職缺匹配分數的影響程度」排列
+
+5. **整體匹配分數 (match_score)**
+   - 0-100 的整數
+   - 綜合所有面向評估，60 分以下為不合格，60-75 為尚可，75-90 為良好，90+ 為優秀
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【回傳格式要求（非常重要）】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+你必須**只回傳**以下 JSON 格式，不得包含任何其他文字、說明、markdown 語法或 code fence：
+
+{{
+  "scenario_simulation": "（情境模擬全文，字串）",
+  "shap_values": {{
+    "skill_match": 0.XX,
+    "education": 0.XX,
+    "experience": 0.XX,
+    "projects": 0.XX
+  }},
+  "salary_impact": "（薪資影響分析全文，字串）",
+  "priority_skills": [
+    {{"rank": 1, "skill": "技能名稱", "reason": "補強理由"}},
+    {{"rank": 2, "skill": "技能名稱", "reason": "補強理由"}},
+    {{"rank": 3, "skill": "技能名稱", "reason": "補強理由"}}
+  ],
+  "match_score": XX
+}}
+""".strip()
+
+
+def parse_gemini_response(raw_text: str, missing_skills: list, job_title: str) -> dict:
+    """從 Gemini 回傳的文字中萃取 JSON，並做防呆處理"""
+    try:
+        # 移除 markdown code fence（Gemini 常會包 ```json ... ```）
+        clean = re.sub(r"```(?:json)?\s*", "", raw_text).strip().rstrip("`").strip()
+        result = json.loads(clean)
+
+        # 確保必要欄位存在，防止 KeyError
+        result.setdefault("match_score", 65)
+        result.setdefault("scenario_simulation", raw_text)
+        result.setdefault("salary_impact", "薪資預估資料不足，請補充更多履歷資訊。")
+        result.setdefault("shap_values", {
+            "skill_match": 0.45,
+            "education": 0.20,
+            "experience": 0.25,
+            "projects": 0.10
+        })
+        result.setdefault("priority_skills", [
+            {"rank": i+1, "skill": s, "reason": "職缺要求技能，建議優先補強"}
+            for i, s in enumerate(missing_skills[:3])
+        ])
+
+        # match_score 確保是 int
+        result["match_score"] = int(result["match_score"])
+        return result
+
+    except (json.JSONDecodeError, ValueError):
+        # 萬一 Gemini 沒乖乖回 JSON，降級到基本結構
+        return {
+            "scenario_simulation": raw_text,
+            "shap_values": {"skill_match": 0.45, "education": 0.20,
+                            "experience": 0.25, "projects": 0.10},
+            "salary_impact": "解析失敗，請重新分析。",
+            "priority_skills": [
+                {"rank": i+1, "skill": s, "reason": "職缺必要技能"}
+                for i, s in enumerate(missing_skills[:3])
+            ],
+            "match_score": 60,
+        }
+
+
 @app.get("/analyze", tags=["📊 核心功能"])
 def analyze_resume():
-    """AI 分析 API (改為覆蓋舊有分析結果)"""
-    # Step 1：取最新一筆履歷 (因為固定了 ID，這裡依然能拿到那唯一的一筆)
+    # Step 1：取履歷（不變）
     resume_resp = supabase.table("resumes").select("*").order("updated_at", desc=True).limit(1).execute()
     if not resume_resp.data:
-        raise HTTPException(status_code=404, detail="找不到履歷。請先至前端儲存履歷，或呼叫 /dev/seed-resume")
+        raise HTTPException(status_code=404, detail="找不到履歷")
     resume = resume_resp.data[0]
 
-    # Step 2：取最新一筆開放職缺
-    job_resp = supabase.table("job_postings").select("*").eq("is_active", True).order("created_at", desc=True).limit(
-        1).execute()
-    if not job_resp.data:
-        raise HTTPException(status_code=404, detail="找不到職缺。請先呼叫 POST /dev/seed-job 新增測試資料")
-    job = job_resp.data[0]
+    # ↓↓↓ Step 2：改為根據 preferences.target_role 選擇職缺 ↓↓↓
+    preferences = resume.get("preferences") or {}
+    target_role = preferences.get("target_role", "")  # 例如 "後端工程師 / 全端工程師"
+
+    # 取所有開放職缺
+    all_jobs_resp = supabase.table("job_postings").select("*").eq("is_active", True).execute()
+    all_jobs = all_jobs_resp.data or []
+
+    if not all_jobs:
+        raise HTTPException(status_code=404, detail="找不到任何職缺")
+
+    # 用 target_role 做關鍵字比對，找最相關的職缺
+    job = match_job_by_role(target_role, all_jobs)
 
     # Step 3：Mock AI 分析
-    ai_result = mock_ai_analysis(resume, job)
+    try:
+        ai_result = ai_analysis_with_gemini(resume, job)
+    except Exception as e:
+        # Gemini 呼叫失敗時降級回 mock（避免整個 API 掛掉）
+        print(f"[WARNING] Gemini API 失敗，降級為 mock: {e}")
+        ai_result = mock_ai_analysis(resume, job)
 
     # 🔥 關鍵改動 3：封裝成帶有固定 MOCK_ANALYSIS_ID 的 payload，並改用 .upsert()
     analysis_payload = {
@@ -265,6 +455,31 @@ def analyze_resume():
         },
         **ai_result,
     }
+
+
+def match_job_by_role(target_role: str, jobs: list) -> dict:
+    """
+    根據 target_role 字串從職缺列表中找最相符的一筆。
+    比對邏輯：把 target_role 拆成關鍵字，計算每個職缺 title 的命中數。
+    """
+    if not target_role:
+        return jobs[0]  # 沒有目標就回傳第一筆
+
+    # 把 "後端工程師 / 全端工程師" 拆成 ["後端工程師", "全端工程師", "後端", "工程師"]
+    keywords = re.split(r"[/／\s、,，]+", target_role)
+    keywords = [k.strip() for k in keywords if k.strip()]
+
+    best_job = jobs[0]
+    best_score = -1
+
+    for job in jobs:
+        title = job.get("title", "")
+        score = sum(1 for kw in keywords if kw in title)
+        if score > best_score:
+            best_score = score
+            best_job = job
+
+    return best_job
 
 
 @app.get("/analysis-results", tags=["📊 核心功能"])
