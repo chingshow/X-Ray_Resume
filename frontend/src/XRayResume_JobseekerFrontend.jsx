@@ -1,23 +1,31 @@
 import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  AlertCircle,
   ArrowLeft,
   BarChart3,
   Briefcase,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
   Compass,
+  Database,
   FileText,
   Lightbulb,
   LineChart,
+  Lock,
+  LogOut,
   Pencil,
+  RefreshCw,
   Rocket,
   Save,
   Search,
+  Send,
   ShieldCheck,
   Target,
   TrendingUp,
   User,
+  Users,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -32,20 +40,45 @@ const initialResume = {
   target_role: "後端工程師 / 全端工程師",
 };
 
+const initialJobRequirement = {
+  title: "資深後端工程師",
+  company: "金融科技公司 A",
+  required_skills: "Python, FastAPI, Kubernetes, Redis, System Design",
+  salary_range: "NT$1,000,000 – NT$1,500,000/年",
+  min_experience: "3",
+  description: "負責設計與開發高併發後端服務，需具備雲端部署與系統架構設計能力。",
+};
+
+const initialLogin = {
+  username: "",
+  password: "",
+};
+
 const featureList = [
   { icon: Target, title: "職缺適配分析", description: "比較履歷與職缺需求，協助判斷目前適配程度。" },
   { icon: Search, title: "技能缺口定位", description: "整理尚未符合的條件，讓履歷優化方向更明確。" },
   { icon: LineChart, title: "可解釋推薦原因", description: "以文字與權重呈現推薦依據，避免只看到單一分數。" },
   { icon: TrendingUp, title: "薪資影響預估", description: "模擬補強技能後，可能帶來的薪資與職缺變化。" },
   { icon: Compass, title: "行動路徑建議", description: "提供證照、專案與學習方向，幫助規劃下一步。" },
-  { icon: Briefcase, title: "HR 初步篩選輔助", description: "協助企業理解候選人與職缺需求之間的符合程度。" },
+  { icon: Briefcase, title: "HR 初步篩選輔助", description: "協助企業理解候選與職缺需求之間的符合程度。" },
 ];
 
 const mockAnalysis = {
   match_score: 72,
+  resume_snapshot: {
+    full_name: "王小明",
+    education: "國立台灣大學 資訊工程學系 學士",
+    skills: ["Python", "FastAPI", "PostgreSQL", "Docker"],
+  },
   job_snapshot: {
     title: "資深後端工程師",
     required_skills: ["Python", "FastAPI", "Kubernetes", "Redis", "System Design"],
+  },
+  shap_values: {
+    skill_match: 0.45,
+    education: 0.2,
+    experience: 0.25,
+    projects: 0.1,
   },
   scenario_simulation: [
     "根據目前履歷，您已具備 Python、FastAPI 與 PostgreSQL 等後端開發基礎，與目標職缺有良好的技術相關性。",
@@ -62,11 +95,133 @@ const mockAnalysis = {
   ],
 };
 
+const initialJobList = [
+  {
+    id: "job-1",
+    title: "資深後端工程師",
+    company: "金融科技公司 A",
+    required_skills: ["Python", "FastAPI", "Kubernetes", "Redis", "System Design"],
+    salary_range: "NT$1,000,000 – NT$1,500,000/年",
+    min_experience: 3,
+    description: "負責設計與開發高併發後端服務，需具備雲端部署與系統架構設計能力。",
+    match_score: 72,
+  },
+  {
+    id: "job-2",
+    title: "全端工程師",
+    company: "新創科技公司 B",
+    required_skills: ["React", "Node.js", "PostgreSQL", "Docker"],
+    salary_range: "NT$850,000 – NT$1,200,000/年",
+    min_experience: 2,
+    description: "參與產品前後端開發，需能與設計、產品與後端團隊協作。",
+    match_score: 68,
+  },
+  {
+    id: "job-3",
+    title: "雲端應用工程師",
+    company: "雲端服務公司 C",
+    required_skills: ["AWS", "Docker", "Kubernetes", "CI/CD"],
+    salary_range: "NT$900,000 – NT$1,300,000/年",
+    min_experience: 2,
+    description: "負責雲端環境部署、服務監控與自動化流程建置。",
+    match_score: 61,
+  },
+];
+
+const initialApplications = [
+  {
+    id: "app-1",
+    candidateId: "candidate-1",
+    jobId: "job-2",
+    jobTitle: "全端工程師",
+    company: "新創科技公司 B",
+    status: "HR 已查看",
+    reply: "HR 回覆：您的前後端背景符合初步需求，建議補充一個完整部署作品後安排下一步。",
+    createdAt: "2026/05/31",
+  },
+];
+
+const initialCandidates = [
+  {
+    id: "candidate-1",
+    appId: "app-1",
+    name: "王小明",
+    target: "後端工程師 / 全端工程師",
+    score: 72,
+    skills: ["Python", "FastAPI", "PostgreSQL", "Docker"],
+    gap: ["Kubernetes", "Redis", "System Design"],
+    appliedJobId: "job-2",
+    status: "HR 已查看",
+    hrReply: "您的前後端背景符合初步需求，建議補充一個完整部署作品後安排下一步。",
+    explanation: "已具備後端開發基礎，若補強雲端部署、快取與系統設計能力，會更符合資深後端職缺。",
+  },
+  {
+    id: "candidate-2",
+    appId: null,
+    name: "林子涵",
+    target: "資料工程師",
+    score: 66,
+    skills: ["Python", "SQL", "ETL", "Tableau"],
+    gap: ["FastAPI", "Cloud Deployment"],
+    appliedJobId: "job-1",
+    status: "待處理",
+    hrReply: "",
+    explanation: "資料處理能力佳，但與後端職缺的 API 開發與部署經驗仍有落差。",
+  },
+  {
+    id: "candidate-3",
+    appId: null,
+    name: "陳品安",
+    target: "初階軟體工程師",
+    score: 58,
+    skills: ["JavaScript", "React", "Node.js"],
+    gap: ["Python", "FastAPI", "System Design"],
+    appliedJobId: "job-1",
+    status: "待處理",
+    hrReply: "",
+    explanation: "前端與 Node.js 經驗可加分，但核心後端技術棧尚未完全符合此職缺。",
+  },
+];
+
 function splitList(value) {
   return String(value || "")
     .split(/[,，\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+async function requestJSON(endpoint, options = {}) {
+  const response = await fetch(`${API_BASE}${endpoint}`, options);
+  const text = await response.text();
+  let data = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.detail || data?.message || `API error: ${response.status}`);
+  }
+
+  return data;
+}
+
+function getScoreLevel(score) {
+  const value = Number(score) || 0;
+
+  if (value >= 75) {
+    return { label: "高適配", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+  }
+
+  if (value >= 60) {
+    return { label: "中適配", className: "bg-amber-50 text-amber-700 border-amber-100" };
+  }
+
+  return { label: "待補強", className: "bg-rose-50 text-rose-700 border-rose-100" };
 }
 
 function Card({ children, className = "" }) {
@@ -79,15 +234,23 @@ function Card({ children, className = "" }) {
 
 function Button({ children, variant = "primary", className = "", ...props }) {
   const styles = {
-    primary: "bg-slate-900 text-white shadow-lg shadow-slate-200 hover:bg-slate-800",
-    secondary: "bg-white/90 text-slate-800 border border-slate-200 hover:bg-slate-50 hover:border-slate-300",
-    ghost: "text-slate-600 hover:bg-white/70",
-    soft: "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-100",
+    primary:
+      "bg-slate-900 text-white shadow-lg shadow-slate-200 hover:-translate-y-1 hover:scale-[1.02] hover:bg-indigo-700 hover:shadow-2xl hover:shadow-indigo-200 active:translate-y-0 active:scale-[0.99]",
+    secondary:
+      "bg-white/90 text-slate-800 border border-slate-200 hover:-translate-y-1 hover:scale-[1.02] hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-100 active:translate-y-0 active:scale-[0.99]",
+    ghost:
+      "text-slate-600 hover:bg-white/80 hover:text-indigo-700 hover:shadow-md active:scale-[0.99]",
+    soft:
+      "bg-indigo-50 text-indigo-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-indigo-100 border border-indigo-100 hover:shadow-lg hover:shadow-indigo-100 active:translate-y-0 active:scale-[0.99]",
+    danger:
+      "bg-rose-50 text-rose-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-rose-100 border border-rose-100 hover:shadow-lg hover:shadow-rose-100 active:translate-y-0 active:scale-[0.99]",
+    success:
+      "bg-emerald-50 text-emerald-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-emerald-100 border border-emerald-100 hover:shadow-lg hover:shadow-emerald-100 active:translate-y-0 active:scale-[0.99]",
   };
 
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
       {...props}
     >
       {children}
@@ -95,16 +258,31 @@ function Button({ children, variant = "primary", className = "", ...props }) {
   );
 }
 
-function Field({ label, value, onChange, multiline = false, disabled = false }) {
-  const baseClass = "w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-500";
+function Field({ label, value, onChange, multiline = false, disabled = false, type = "text", placeholder = "" }) {
+  const baseClass =
+    "w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-500";
 
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>
       {multiline ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={4} disabled={disabled} className={baseClass} />
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={4}
+          disabled={disabled}
+          className={baseClass}
+          placeholder={placeholder}
+        />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={baseClass} />
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className={baseClass}
+          placeholder={placeholder}
+        />
       )}
     </label>
   );
@@ -114,7 +292,10 @@ function StatusNote({ children, type = "info" }) {
   const styles = {
     info: "border-indigo-100 bg-indigo-50 text-indigo-700",
     success: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    warning: "border-amber-100 bg-amber-50 text-amber-700",
+    error: "border-rose-100 bg-rose-50 text-rose-700",
   };
+
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${styles[type] || styles.info}`}>{children}</div>;
 }
 
@@ -144,11 +325,51 @@ function AppShell({ children }) {
   );
 }
 
+function TopLogout({ onLogout }) {
+  return (
+    <div className="flex justify-end pt-1">
+      <Button variant="secondary" onClick={onLogout}>
+        <LogOut size={16} /> 登出
+      </Button>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, icon: Icon }) {
+  return (
+    <div className="rounded-3xl bg-white/75 p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{value}</div>
+        </div>
+        {Icon && <Icon className="text-indigo-600" size={24} />}
+      </div>
+    </div>
+  );
+}
+
 export default function XRayResumeJobseekerFrontend() {
   const [page, setPage] = useState("landing");
+  const [selectedRole, setSelectedRole] = useState("jobseeker");
+  const [login, setLogin] = useState(initialLogin);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const [mode, setMode] = useState("view");
   const [resume, setResume] = useState(initialResume);
+  const [jobRequirement, setJobRequirement] = useState(initialJobRequirement);
+  const [jobList, setJobList] = useState(initialJobList);
+  const [selectedHrJobId, setSelectedHrJobId] = useState(initialJobList[0].id);
+
+  const [favoriteJobIds, setFavoriteJobIds] = useState([]);
+  const [applications, setApplications] = useState(initialApplications);
   const [analysis, setAnalysis] = useState(null);
+  const [analysisHistory, setAnalysisHistory] = useState([]);
+  const [hrCandidates, setHrCandidates] = useState(initialCandidates);
+  const [selectedCandidateId, setSelectedCandidateId] = useState(initialCandidates[0].id);
+  const [hrReplyDraft, setHrReplyDraft] = useState("");
+
+  const [apiStatus, setApiStatus] = useState("unknown");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
@@ -158,7 +379,56 @@ export default function XRayResumeJobseekerFrontend() {
     return Math.round((fields / Object.keys(resume).length) * 100);
   }, [resume]);
 
+  const selectedHrJob = jobList.find((job) => job.id === selectedHrJobId) || jobList[0];
+
+  const candidatesForSelectedJob = useMemo(() => {
+    return hrCandidates.filter((candidate) => candidate.appliedJobId === selectedHrJob?.id);
+  }, [hrCandidates, selectedHrJob]);
+
+  const selectedCandidate = hrCandidates.find((candidate) => candidate.id === selectedCandidateId) || candidatesForSelectedJob[0] || null;
+
+  const candidateStats = useMemo(() => {
+    const total = candidatesForSelectedJob.length;
+    const high = candidatesForSelectedJob.filter((candidate) => Number(candidate.score) >= 75).length;
+    const medium = candidatesForSelectedJob.filter((candidate) => Number(candidate.score) >= 60 && Number(candidate.score) < 75).length;
+
+    return { total, high, medium };
+  }, [candidatesForSelectedJob]);
+
   const setResumeField = (key, value) => setResume((prev) => ({ ...prev, [key]: value }));
+  const setJobField = (key, value) => setJobRequirement((prev) => ({ ...prev, [key]: value }));
+
+  function showMessage(text, type = "info") {
+    setMessage(text);
+    setMessageType(type);
+  }
+
+  function logout() {
+    setCurrentUser(null);
+    setLogin(initialLogin);
+    setMessage("");
+    setPage("landing");
+  }
+
+  function goLogin(role) {
+    setSelectedRole(role);
+    setMessage("");
+    setLogin(initialLogin);
+    setPage("login");
+  }
+
+  function handleLogin(event) {
+    event.preventDefault();
+
+    if (!login.username.trim() || !login.password.trim()) {
+      showMessage("請輸入使用者名稱與密碼。", "warning");
+      return;
+    }
+
+    setCurrentUser({ username: login.username.trim(), role: selectedRole });
+    showMessage("登入成功。此階段先以前端模擬登入，之後可接後端會員系統。", "success");
+    setPage(selectedRole === "hr" ? "hr" : "home");
+  }
 
   function buildResumePayload() {
     return {
@@ -172,9 +442,7 @@ export default function XRayResumeJobseekerFrontend() {
         { company: "新創科技股份有限公司", title: "後端工程師", duration: "2022/07 - 2024/06" },
         { company: "學校專題實驗室", title: "研究助理", duration: "2021/09 - 2022/06" },
       ],
-      projects: [
-        { name: "X-Ray Resume", url: "https://github.com/example/xray-resume" },
-      ],
+      projects: [{ name: "X-Ray Resume", url: "https://github.com/example/xray-resume" }],
       preferences: {
         expected_salary: resume.expected_salary,
         target_role: resume.target_role,
@@ -182,145 +450,334 @@ export default function XRayResumeJobseekerFrontend() {
     };
   }
 
+  function buildJobPayload(job = jobRequirement) {
+    return {
+      title: job.title,
+      required_skills: Array.isArray(job.required_skills) ? job.required_skills : splitList(job.required_skills),
+      salary_range: job.salary_range,
+      min_experience: Number(job.min_experience) || 0,
+    };
+  }
+
+  async function checkHealth() {
+    try {
+      await requestJSON("/health");
+      setApiStatus("online");
+      showMessage("後端 API 連線正常。", "success");
+    } catch (error) {
+      console.error("健康檢查 API 錯誤：", error);
+      setApiStatus("offline");
+      showMessage("目前無法連到後端，畫面會先使用前端預覽資料。", "warning");
+    }
+  }
+
   async function saveResume() {
     setLoading(true);
     setMessage("");
 
     try {
-      const response = await fetch(`${API_BASE}/resume`, {
+      await requestJSON("/resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildResumePayload()),
       });
 
-      const text = await response.text();
-      let data = null;
-
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = null;
-        }
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.detail || "save_failed");
-      }
-
-      setMessage("履歷已儲存到資料庫，現在可以進行最新履歷分析。");
-      setMessageType("success");
+      setApiStatus("online");
+      showMessage("履歷已儲存到資料庫，現在可以進行最新履歷分析。", "success");
       setMode("view");
     } catch (error) {
-      setMessage("履歷暫時無法儲存，請確認後端與 Supabase 連線正常後再試一次。");
-      setMessageType("info");
+      console.error("儲存履歷 API 錯誤：", error);
+      setApiStatus("offline");
+      showMessage("履歷暫時無法儲存，請確認後端與 Supabase 連線正常後再試一次。", "warning");
     } finally {
       setLoading(false);
     }
   }
 
-  async function runAnalysis() {
+  async function seedJobPosting(job = null) {
     setLoading(true);
     setMessage("");
+
     try {
-      const response = await fetch(`${API_BASE}/analyze`);
-      const text = await response.text();
-      let data = null;
+      await requestJSON("/dev/seed-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildJobPayload(job || jobRequirement)),
+      });
 
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = null;
-        }
-      }
-
-      if (!response.ok || !data) {
-        throw new Error("analysis_unavailable");
-      }
-
-      setAnalysis(data);
-      setPage("analysis");
-    } catch {
-      setAnalysis(mockAnalysis);
-      setPage("analysis");
-      setMessage("目前顯示為預覽分析結果。稍後連線完成後，即可呈現即時資料。");
-      setMessageType("info");
+      setApiStatus("online");
+      showMessage("職缺需求已送到後端測試資料庫，求職者分析會使用最新職缺。", "success");
+    } catch (error) {
+      console.error("新增職缺 API 錯誤：", error);
+      setApiStatus("offline");
+      showMessage("目前無法新增後端職缺，HR 介面會先保留前端設定資料。", "warning");
     } finally {
       setLoading(false);
     }
+  }
+
+  function addLocalJob() {
+    const newJob = {
+      id: `job-${Date.now()}`,
+      title: jobRequirement.title || "未命名職缺",
+      company: jobRequirement.company || "HR 新增公司",
+      required_skills: splitList(jobRequirement.required_skills),
+      salary_range: jobRequirement.salary_range,
+      min_experience: Number(jobRequirement.min_experience) || 0,
+      description: jobRequirement.description,
+      match_score: 65,
+    };
+
+    setJobList((prev) => [newJob, ...prev]);
+    setSelectedHrJobId(newJob.id);
+    showMessage("已新增到前端職缺列表。可再按「同步此職缺到後端」送到測試資料庫。", "success");
+  }
+
+  async function runAnalysis() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const data = await requestJSON("/analyze");
+      setApiStatus("online");
+      setAnalysis(data);
+      setPage("analysis");
+    } catch (error) {
+      console.error("分析 API 錯誤：", error);
+      setApiStatus("offline");
+      setAnalysis(mockAnalysis);
+      setPage("analysis");
+      showMessage("目前顯示為前端預覽分析結果。請確認後端、Supabase、履歷與職缺測試資料是否正常。", "warning");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadAnalysisResults() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const data = await requestJSON("/analysis-results");
+      const list = Array.isArray(data) ? data : [];
+      setAnalysisHistory(list);
+      setApiStatus("online");
+
+      if (list.length > 0) {
+        const candidates = list.slice(0, 6).map((item, index) => {
+          const score = Number(item.match_score) || 0;
+          const gaps = Array.isArray(item.skill_gaps) ? item.skill_gaps : [];
+
+          return {
+            id: item.id || `analysis-${index}`,
+            appId: null,
+            name: `候選 ${index + 1}`,
+            target: selectedHrJob?.title || "目標職缺",
+            score,
+            skills: [],
+            gap: gaps,
+            appliedJobId: selectedHrJob?.id,
+            status: "待處理",
+            hrReply: "",
+            explanation: item.explanation || "此候選的分析結果已由後端產生，可作為 HR 初篩參考。",
+          };
+        });
+
+        setHrCandidates(candidates);
+        setSelectedCandidateId(candidates[0]?.id || null);
+        showMessage("已載入後端 analysis_results，HR 候選列表已更新。", "success");
+      } else {
+        showMessage("後端目前沒有分析紀錄，HR 候選列表先顯示前端預覽資料。", "info");
+      }
+    } catch (error) {
+      console.error("分析紀錄 API 錯誤：", error);
+      setApiStatus("offline");
+      setHrCandidates(initialCandidates);
+      setSelectedCandidateId(initialCandidates[0].id);
+      showMessage("目前無法載入後端分析紀錄，HR 介面先顯示前端預覽資料。", "warning");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggleFavorite(jobId) {
+    setFavoriteJobIds((prev) => (prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]));
+  }
+
+  function applyToJob(job) {
+    const exists = applications.some((item) => item.jobId === job.id);
+
+    if (exists) {
+      showMessage("你已經投遞過這個職缺，可以到投遞紀錄查看 HR 回覆。", "info");
+      setPage("applications");
+      return;
+    }
+
+    const appId = `app-${Date.now()}`;
+    const candidateId = `candidate-${Date.now()}`;
+    const resumeSkills = splitList(resume.skills);
+    const gap = job.required_skills.filter((skill) => !resumeSkills.includes(skill));
+
+    const newApplication = {
+      id: appId,
+      candidateId,
+      jobId: job.id,
+      jobTitle: job.title,
+      company: job.company,
+      status: "已投遞，等待 HR 回覆",
+      reply: "HR 尚未回覆。之後若後端新增 HR 回覆 API，可直接覆蓋這裡的前端狀態。",
+      createdAt: new Date().toLocaleDateString("zh-TW"),
+    };
+
+    const newCandidate = {
+      id: candidateId,
+      appId,
+      name: resume.full_name || "求職者",
+      target: resume.target_role,
+      score: job.match_score,
+      skills: resumeSkills,
+      gap,
+      appliedJobId: job.id,
+      status: "待處理",
+      hrReply: "",
+      explanation: `此求職者已投遞「${job.title}」，目前匹配度約 ${job.match_score} 分，可由 HR 進一步檢視技能缺口與履歷摘要。`,
+    };
+
+    setApplications((prev) => [newApplication, ...prev]);
+    setHrCandidates((prev) => [newCandidate, ...prev]);
+    showMessage("已送出投遞。你可以到投遞紀錄查看狀態，HR 端也會看到這筆前端投遞資料。", "success");
+    setPage("applications");
+  }
+
+  function updateCandidateDecision(candidate, decision) {
+    if (!candidate) return;
+
+    const status = decision === "selected" ? "已選擇" : "已拒絕";
+    const defaultReply =
+      decision === "selected"
+        ? "HR 回覆：您的履歷與此職缺需求相符，後續將進一步聯繫您。"
+        : "HR 回覆：感謝您的投遞，目前此職缺與您的背景仍有部分落差，建議補強相關技能後再投遞。";
+
+    const reply = hrReplyDraft.trim() ? `HR 回覆：${hrReplyDraft.trim()}` : defaultReply;
+
+    setHrCandidates((prev) =>
+      prev.map((item) =>
+        item.id === candidate.id
+          ? {
+              ...item,
+              status,
+              hrReply: reply,
+            }
+          : item
+      )
+    );
+
+    if (candidate.appId) {
+      setApplications((prev) =>
+        prev.map((item) =>
+          item.id === candidate.appId
+            ? {
+                ...item,
+                status,
+                reply,
+              }
+            : item
+        )
+      );
+    }
+
+    setHrReplyDraft("");
+    showMessage(`已將 ${candidate.name} 標記為「${status}」。若此候選來自求職者投遞，求職者端會看到此回覆。`, "success");
   }
 
   if (page === "landing") {
     return (
       <AppShell>
         <div className="mx-auto max-w-7xl">
-          <nav className="mb-10 flex flex-col gap-4 rounded-[28px] border border-white/70 bg-white/75 px-6 py-5 shadow-lg shadow-indigo-100/40 backdrop-blur md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-indigo-100">
-                <FileText size={26} />
-              </div>
-              <div>
-                <div className="text-3xl font-black tracking-tight text-slate-950 md:text-4xl">X-Ray Resume</div>
-                <div className="text-sm font-semibold text-slate-500 md:text-base">可解釋的履歷分析與職缺匹配平台</div>
-              </div>
-            </div>
-            <Button variant="soft" onClick={() => setPage("home")}>進入平台</Button>
-          </nav>
+          <div className="mb-5 flex justify-end">
+            <Button variant="secondary" className="px-4 py-2 text-sm" onClick={checkHealth}>
+              <Database size={16} /> 檢查 API
+            </Button>
+          </div>
 
-          <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-            <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+          <div className="grid gap-10 lg:grid-cols-[1.02fr_0.98fr]">
+            <motion.section
+              className="grid h-[600px] grid-rows-[auto_1fr_auto] overflow-visible"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55 }}
+            >
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
                 <Briefcase size={16} /> 給求職者與企業 HR 的雙向決策支援
               </div>
 
-              <div className="mb-4 text-5xl font-black leading-none tracking-tight text-slate-950 md:text-7xl">
-                X-Ray Resume
+              <div className="flex min-h-0 flex-col justify-center pb-3">
+                <div>
+                  <div className="mb-8 whitespace-nowrap text-5xl font-black leading-none tracking-tight text-slate-950 md:text-6xl xl:text-7xl">
+                    X-Ray Resume
+                  </div>
+
+                  <h1 className="max-w-3xl text-3xl font-black leading-[1.25] tracking-tight text-slate-900 md:text-4xl xl:text-5xl">
+                    看見每個人的可能，
+                    <span className="block text-indigo-700">成就更適合的相遇。</span>
+                  </h1>
+
+                  <p className="mt-8 max-w-[760px] text-[19px] leading-9 text-slate-600">
+                    這是一個可解釋的履歷分析與職缺匹配平台，協助求職者看懂自身優勢、技能缺口與行動方向，也協助企業 HR
+                    更有效率地理解候選與職缺需求之間的適配程度。
+                  </p>
+
+                  <div className="mt-9 flex flex-wrap gap-4">
+                    <Button onClick={() => goLogin("jobseeker")} className="px-8 py-3.5 text-base">
+                      求職者入口 <ChevronRight size={19} />
+                    </Button>
+                    <Button onClick={() => goLogin("hr")} className="px-8 py-3.5 text-base">
+                      企業 / HR 入口 <ChevronRight size={19} />
+                    </Button>
+                  </div>
+                </div>
               </div>
 
-              <h1 className="max-w-3xl text-3xl font-black leading-tight tracking-tight text-slate-900 md:text-4xl">
-                看見每個人的可能，
-                <span className="block text-indigo-700">成就更適合的相遇。</span>
-              </h1>
-
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-                這是一個可解釋的履歷分析與職缺匹配平台，協助求職者看懂自身優勢、技能缺口與行動方向，也協助企業 HR 更有效率地理解候選人與職缺需求之間的適配程度。
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button onClick={() => setPage("home")} className="px-6 py-3 text-base">
-                  求職者入口 <ChevronRight size={18} />
-                </Button>
-                <Button variant="secondary" className="px-6 py-3 text-base" onClick={() => alert("HR 端可在下一階段加入")}>
-                  企業 / HR 入口
-                </Button>
-              </div>
-
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3">
                 {["求職者履歷健檢", "企業 HR 初篩輔助", "推薦依據透明"].map((item) => (
-                  <div key={item} className="flex items-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm">
-                    <CheckCircle2 className="text-emerald-500" size={17} /> {item}
+                  <div
+                    key={item}
+                    className="flex min-h-[50px] items-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  >
+                    <CheckCircle2 className="shrink-0 text-emerald-500" size={17} /> {item}
                   </div>
                 ))}
               </div>
             </motion.section>
 
-            <motion.section initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.55, delay: 0.1 }}>
-              <Card className="p-6 md:p-8">
-                <div className="mb-6 flex items-center justify-between gap-4">
+            <motion.section
+              className="h-[600px]"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.55, delay: 0.1 }}
+            >
+              <Card className="flex h-full w-full flex-col p-5 md:p-6">
+                <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-black text-slate-900">平台功能</h2>
-                    <p className="mt-1 text-sm text-slate-500">同時支援求職者的履歷優化，以及企業 HR 的候選人理解與初步篩選。</p>
+                    <p className="mt-1 whitespace-nowrap text-sm text-slate-500">
+                      同時支援求職者的履歷優化，以及企業 HR 的候選理解與初步篩選。
+                    </p>
                   </div>
                   <div className="rounded-2xl bg-slate-900 p-3 text-white shadow-lg shadow-indigo-100">
                     <Rocket size={24} />
                   </div>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+
+                <div className="grid flex-1 gap-3 sm:grid-cols-2">
                   {featureList.map((feature) => {
                     const Icon = feature.icon;
+
                     return (
-                      <div key={feature.title} className="rounded-3xl border border-slate-100 bg-white/75 p-4 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-100">
+                      <div
+                        key={feature.title}
+                        className="rounded-3xl border border-slate-100 bg-white/75 p-3.5"
+                      >
                         <div className="mb-3 grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">
                           <Icon size={20} />
                         </div>
@@ -333,6 +790,73 @@ export default function XRayResumeJobseekerFrontend() {
               </Card>
             </motion.section>
           </div>
+
+          {message && (
+            <div className="mt-5">
+              <StatusNote type={messageType}>{message}</StatusNote>
+            </div>
+          )}
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "login") {
+    const roleLabel = selectedRole === "hr" ? "企業 / HR" : "求職者";
+
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-xl">
+          <Button variant="ghost" onClick={() => setPage("landing")} className="mb-5">
+            <ArrowLeft size={16} /> 返回首頁
+          </Button>
+
+          <Card className="p-6 md:p-8">
+            <div className="mb-7 text-center">
+              <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-slate-900 text-white shadow-lg shadow-indigo-100">
+                {selectedRole === "hr" ? <Users size={28} /> : <User size={28} />}
+              </div>
+              <h1 className="text-3xl font-black">{roleLabel}登入</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                目前先以前端模擬帳密登入，之後後端有會員 / 權限 API 時可替換。
+              </p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <Field
+                label="使用者名稱"
+                value={login.username}
+                onChange={(v) => setLogin((prev) => ({ ...prev, username: v }))}
+                placeholder={selectedRole === "hr" ? "例如：hr_admin" : "例如：jobseeker01"}
+              />
+              <Field
+                label="密碼"
+                type="password"
+                value={login.password}
+                onChange={(v) => setLogin((prev) => ({ ...prev, password: v }))}
+                placeholder="請輸入密碼"
+              />
+
+              <Button className="w-full py-3 text-base" type="submit">
+                <Lock size={16} /> 登入
+              </Button>
+            </form>
+
+            <div className="mt-5 flex justify-center gap-3 text-sm">
+              <button
+                className="cursor-pointer font-semibold text-indigo-700 transition hover:text-indigo-900 hover:underline"
+                onClick={() => setSelectedRole(selectedRole === "hr" ? "jobseeker" : "hr")}
+              >
+                切換成{selectedRole === "hr" ? "求職者" : "企業 / HR"}登入
+              </button>
+            </div>
+
+            {message && (
+              <div className="mt-5">
+                <StatusNote type={messageType}>{message}</StatusNote>
+              </div>
+            )}
+          </Card>
         </div>
       </AppShell>
     );
@@ -342,24 +866,29 @@ export default function XRayResumeJobseekerFrontend() {
     return (
       <AppShell>
         <div className="mx-auto max-w-7xl">
-          <header className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <header className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-start">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm">
-                <User size={16} /> 求職者工作台
+                <User size={16} /> 求職者首頁
               </div>
               <h1 className="text-4xl font-black tracking-tight text-slate-950">歡迎回來，{resume.full_name}</h1>
               <p className="mt-2 text-slate-600">整理履歷、分析職缺適配度，並取得可以實際行動的求職建議。</p>
             </div>
-            <Button variant="secondary" onClick={() => setPage("landing")}>返回首頁</Button>
+            <TopLogout onLogout={logout} />
           </header>
 
           <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
             <Card className="p-6 md:p-8">
               <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <h2 className="flex items-center gap-2 text-2xl font-black"><FileText className="text-indigo-600" /> 我的履歷概況</h2>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">確認基本資料與技能內容後，即可產生履歷與職缺的可解釋分析。</p>
+                  <h2 className="flex items-center gap-2 text-2xl font-black">
+                    <FileText className="text-indigo-600" /> 我的履歷概況
+                  </h2>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                    確認基本資料與技能內容後，即可產生履歷與職缺的可解釋分析。
+                  </p>
                 </div>
+
                 <div className="rounded-3xl bg-gradient-to-br from-indigo-50 to-sky-50 px-5 py-4 text-center">
                   <div className="text-3xl font-black text-indigo-700">{completion}%</div>
                   <div className="text-xs font-semibold text-slate-500">履歷完整度</div>
@@ -385,23 +914,45 @@ export default function XRayResumeJobseekerFrontend() {
                 <div className="text-sm font-semibold text-white/75">核心技能</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {splitList(resume.skills).map((skill) => (
-                    <span key={skill} className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur">{skill}</span>
+                    <span key={skill} className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur">
+                      {skill}
+                    </span>
                   ))}
                 </div>
               </div>
 
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button variant="secondary" onClick={() => { setMode("view"); setPage("resume"); }}>檢視履歷</Button>
-                <Button variant="secondary" onClick={() => { setMode("edit"); setPage("resume"); }}><Pencil size={16} /> 修改履歷</Button>
-                <Button onClick={runAnalysis} disabled={loading}><BarChart3 size={16} /> {loading ? "分析中..." : "開始分析"}</Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setMode("view");
+                    setPage("resume");
+                  }}
+                >
+                  檢視履歷
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setMode("edit");
+                    setPage("resume");
+                  }}
+                >
+                  <Pencil size={16} /> 修改履歷
+                </Button>
+                <Button onClick={runAnalysis} disabled={loading}>
+                  <BarChart3 size={16} /> {loading ? "分析中..." : "開始分析"}
+                </Button>
               </div>
             </Card>
 
             <div className="space-y-5">
               <Card className="p-6">
-                <h2 className="flex items-center gap-2 text-xl font-black"><Lightbulb className="text-amber-500" /> 建議流程</h2>
+                <h2 className="flex items-center gap-2 text-xl font-black">
+                  <Lightbulb className="text-amber-500" /> 建議流程
+                </h2>
                 <div className="mt-5 space-y-3">
-                  {["確認履歷完整度", "選擇目標職缺", "查看技能缺口", "規劃補強路徑"].map((step, index) => (
+                  {["確認履歷完整度", "選擇心儀職缺", "查看技能缺口", "確認投遞履歷"].map((step, index) => (
                     <div key={step} className="flex items-center gap-3 rounded-2xl bg-white/75 p-3 text-sm font-semibold text-slate-700">
                       <div className="grid h-8 w-8 place-items-center rounded-xl bg-indigo-50 text-indigo-600">{index + 1}</div>
                       {step}
@@ -411,17 +962,29 @@ export default function XRayResumeJobseekerFrontend() {
               </Card>
 
               <Card className="p-6">
-                <h2 className="flex items-center gap-2 text-xl font-black"><Briefcase className="text-violet-600" /> 其他功能</h2>
+                <h2 className="flex items-center gap-2 text-xl font-black">
+                  <Briefcase className="text-violet-600" /> 其他功能
+                </h2>
                 <div className="mt-5 space-y-3">
-                  <Button variant="secondary" className="w-full justify-start" onClick={() => alert("職缺推薦功能將於下一階段加入")}>職缺推薦</Button>
-                  <Button variant="secondary" className="w-full justify-start" onClick={() => alert("投遞紀錄功能將於下一階段加入")}>投遞紀錄</Button>
-                  <Button variant="secondary" className="w-full justify-start" onClick={() => alert("AI 職涯顧問功能將於下一階段加入")}>AI 職涯顧問</Button>
+                  <Button variant="secondary" className="w-full justify-start" onClick={() => setPage("jobs")}>
+                    職缺推薦
+                  </Button>
+                  <Button variant="secondary" className="w-full justify-start" onClick={() => setPage("applications")}>
+                    投遞紀錄 / HR 回覆
+                  </Button>
+                  <Button variant="secondary" className="w-full justify-start" onClick={() => setPage("advisor")}>
+                    AI 職涯顧問
+                  </Button>
                 </div>
               </Card>
             </div>
           </div>
 
-          {message && <div className="mt-5"><StatusNote type={messageType}>{message}</StatusNote></div>}
+          {message && (
+            <div className="mt-5">
+              <StatusNote type={messageType}>{message}</StatusNote>
+            </div>
+          )}
         </div>
       </AppShell>
     );
@@ -429,17 +992,25 @@ export default function XRayResumeJobseekerFrontend() {
 
   if (page === "resume") {
     const readOnly = mode === "view";
+
     return (
       <AppShell>
         <div className="mx-auto max-w-5xl">
-          <Button variant="ghost" onClick={() => setPage("home")} className="mb-5"><ArrowLeft size={16} /> 返回工作台</Button>
+          <TopLogout onLogout={logout} />
+
+          <Button variant="ghost" onClick={() => setPage("home")} className="mb-5">
+            <ArrowLeft size={16} /> 返回求職者首頁
+          </Button>
+
           <Card className="p-6 md:p-8">
             <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
                 <h1 className="text-3xl font-black">{readOnly ? "檢視履歷" : "修改履歷"}</h1>
                 <p className="mt-2 text-sm text-slate-500">補齊學歷、技能、證照與職涯目標，能讓後續分析更完整。</p>
               </div>
-              <Button variant="secondary" onClick={() => setMode(readOnly ? "edit" : "view")}>{readOnly ? "切換成修改" : "切換成檢視"}</Button>
+              <Button variant="secondary" onClick={() => setMode(readOnly ? "edit" : "view")}>
+                {readOnly ? "切換成修改" : "切換成檢視"}
+              </Button>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
@@ -453,70 +1024,588 @@ export default function XRayResumeJobseekerFrontend() {
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              <Button onClick={saveResume} disabled={loading || readOnly}><Save size={16} /> {loading ? "儲存中..." : "儲存變更"}</Button>
-              <Button variant="secondary" onClick={runAnalysis} disabled={loading}><BarChart3 size={16} /> 查看分析</Button>
+              <Button onClick={saveResume} disabled={loading || readOnly}>
+                <Save size={16} /> {loading ? "儲存中..." : "儲存變更"}
+              </Button>
+              <Button variant="secondary" onClick={runAnalysis} disabled={loading}>
+                <BarChart3 size={16} /> 查看分析
+              </Button>
             </div>
-            {message && <div className="mt-5"><StatusNote type={messageType}>{message}</StatusNote></div>}
+
+            {message && (
+              <div className="mt-5">
+                <StatusNote type={messageType}>{message}</StatusNote>
+              </div>
+            )}
           </Card>
         </div>
       </AppShell>
     );
   }
 
-  return (
-    <AppShell>
-      <div className="mx-auto max-w-7xl">
-        <Button variant="ghost" onClick={() => setPage("home")} className="mb-5"><ArrowLeft size={16} /> 返回工作台</Button>
-        {message && <div className="mb-5"><StatusNote type={messageType}>{message}</StatusNote></div>}
+  if (page === "analysis") {
+    const shapValues = analysis?.shap_values || {};
+    const shapItems = [
+      { label: "技能匹配度", value: shapValues.skill_match },
+      { label: "學歷符合度", value: shapValues.education },
+      { label: "工作經驗", value: shapValues.experience },
+      { label: "專案作品", value: shapValues.projects },
+    ].filter((item) => item.value !== undefined && item.value !== null);
 
-        <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
-          <Card className="grid place-items-center p-7 text-center">
-            <ScoreRing score={analysis?.match_score ?? 0} />
-            <h1 className="mt-6 text-3xl font-black">履歷分析報告</h1>
-            <p className="mt-2 text-sm text-slate-500">目標職缺：{analysis?.job_snapshot?.title || "推薦職缺"}</p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {(analysis?.job_snapshot?.required_skills || []).map((skill) => (
-                <span key={skill} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{skill}</span>
-              ))}
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-7xl">
+          <TopLogout onLogout={logout} />
+
+          <Button variant="ghost" onClick={() => setPage("home")} className="mb-5">
+            <ArrowLeft size={16} /> 返回求職者首頁
+          </Button>
+
+          {message && (
+            <div className="mb-5">
+              <StatusNote type={messageType}>{message}</StatusNote>
+            </div>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
+            <Card className="grid place-items-center p-7 text-center">
+              <ScoreRing score={analysis?.match_score ?? 0} />
+              <h1 className="mt-6 text-3xl font-black">履歷分析報告</h1>
+              <p className="mt-2 text-sm text-slate-500">目標職缺：{analysis?.job_snapshot?.title || "推薦職缺"}</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {(analysis?.job_snapshot?.required_skills || []).map((skill) => (
+                  <span key={skill} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-6 md:p-8">
+              <h2 className="flex items-center gap-2 text-2xl font-black">
+                <ShieldCheck className="text-emerald-500" /> 為什麼這樣推薦？
+              </h2>
+              <p className="mt-4 whitespace-pre-line rounded-3xl bg-white/75 p-5 text-sm leading-7 text-slate-700 shadow-sm">
+                {analysis?.scenario_simulation || "目前正在整理分析結果。"}
+              </p>
+            </Card>
+          </div>
+
+          {shapItems.length > 0 && (
+            <Card className="mt-5 p-6 md:p-8">
+              <h2 className="flex items-center gap-2 text-2xl font-black">
+                <BarChart3 className="text-indigo-600" /> 權重解釋
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">後端目前已回傳 shap_values，可先用前端長條圖呈現推薦依據。</p>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-4">
+                {shapItems.map((item) => {
+                  const percent = Math.round(Number(item.value) * 100);
+
+                  return (
+                    <div key={item.label} className="rounded-3xl bg-white/75 p-5 shadow-sm">
+                      <div className="text-sm font-bold text-slate-700">{item.label}</div>
+                      <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-indigo-600" style={{ width: `${Math.max(4, percent)}%` }} />
+                      </div>
+                      <div className="mt-3 text-2xl font-black text-slate-900">{percent}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-3">
+            <Card className="p-6 lg:col-span-2">
+              <h2 className="flex items-center gap-2 text-2xl font-black">
+                <Rocket className="text-violet-600" /> 優先補強技能
+              </h2>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                {(analysis?.priority_skills || []).map((item) => (
+                  <div key={item.rank} className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm">
+                    <div className="mb-4 grid h-10 w-10 place-items-center rounded-2xl bg-slate-900 font-black text-white">{item.rank}</div>
+                    <h3 className="font-black text-slate-900">{item.skill}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{item.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="flex items-center gap-2 text-2xl font-black">
+                <TrendingUp className="text-sky-600" /> 薪資影響
+              </h2>
+              <p className="mt-4 whitespace-pre-line rounded-3xl bg-white/75 p-5 text-sm leading-7 text-slate-700 shadow-sm">
+                {analysis?.salary_impact || "目前正在整理薪資影響。"}
+              </p>
+            </Card>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button variant="secondary" onClick={() => setPage("jobs")}>
+              查看可投遞職缺
+            </Button>
+            <Button variant="secondary" onClick={() => setPage("scenario")}>
+              情境模擬
+            </Button>
+            <Button onClick={() => setPage("resume")}>回去優化履歷</Button>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "jobs") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-7xl">
+          <TopLogout onLogout={logout} />
+
+          <Button variant="ghost" onClick={() => setPage("home")} className="mb-5">
+            <ArrowLeft size={16} /> 返回求職者首頁
+          </Button>
+
+          <Card className="p-6 md:p-8">
+            <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <h1 className="flex items-center gap-3 text-3xl font-black">
+                  <Briefcase className="text-indigo-600" /> 職缺推薦
+                </h1>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  可先收藏心儀職缺，再確認投遞。此階段投遞先存在前端，之後可接後端投遞 API。
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => setPage("applications")}>
+                查看投遞紀錄
+              </Button>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-3">
+              {jobList.map((job) => {
+                const isFavorite = favoriteJobIds.includes(job.id);
+                const hasApplied = applications.some((item) => item.jobId === job.id);
+                const level = getScoreLevel(job.match_score);
+
+                return (
+                  <div
+                    key={job.id}
+                    className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg"
+                  >
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
+                      <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{job.match_score}</span>
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900">{job.title}</h2>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">{job.company}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">{job.description}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {job.required_skills.map((skill) => (
+                        <span key={skill} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">{job.salary_range}</div>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <Button variant={isFavorite ? "soft" : "secondary"} onClick={() => toggleFavorite(job.id)}>
+                        {isFavorite ? "已加入心儀" : "加入心儀"}
+                      </Button>
+                      <Button onClick={() => applyToJob(job)} disabled={hasApplied}>
+                        <Send size={16} /> {hasApplied ? "已投遞" : "確認投遞"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
 
+          {message && (
+            <div className="mt-5">
+              <StatusNote type={messageType}>{message}</StatusNote>
+            </div>
+          )}
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "applications") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-6xl">
+          <TopLogout onLogout={logout} />
+
+          <Button variant="ghost" onClick={() => setPage("home")} className="mb-5">
+            <ArrowLeft size={16} /> 返回求職者首頁
+          </Button>
+
           <Card className="p-6 md:p-8">
-            <h2 className="flex items-center gap-2 text-2xl font-black"><ShieldCheck className="text-emerald-500" /> 為什麼這樣推薦？</h2>
-            <p className="mt-4 whitespace-pre-line rounded-3xl bg-white/75 p-5 text-sm leading-7 text-slate-700 shadow-sm">
-              {analysis?.scenario_simulation || "目前正在整理分析結果。"}
-            </p>
+            <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <h1 className="flex items-center gap-3 text-3xl font-black">
+                  <ClipboardList className="text-indigo-600" /> 投遞紀錄 / HR 回覆
+                </h1>
+                <p className="mt-2 text-sm leading-6 text-slate-500">求職者可以查看已投遞職缺、目前狀態，以及 HR 的回覆內容。</p>
+              </div>
+              <Button variant="secondary" onClick={() => setPage("jobs")}>
+                繼續查看職缺
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {applications.length === 0 ? (
+                <StatusNote>目前尚未投遞任何職缺。</StatusNote>
+              ) : (
+                applications.map((item) => (
+                  <div key={item.id} className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm">
+                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+                      <div>
+                        <h2 className="text-xl font-black text-slate-900">{item.jobTitle}</h2>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
+                          {item.company} · {item.createdAt}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                        {item.status}
+                      </span>
+                    </div>
+                    <p className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">{item.reply}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </Card>
         </div>
+      </AppShell>
+    );
+  }
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-3">
-          <Card className="p-6 lg:col-span-2">
-            <h2 className="flex items-center gap-2 text-2xl font-black"><Rocket className="text-violet-600" /> 優先補強技能</h2>
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              {(analysis?.priority_skills || []).map((item) => (
-                <div key={item.rank} className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm">
-                  <div className="mb-4 grid h-10 w-10 place-items-center rounded-2xl bg-slate-900 font-black text-white">{item.rank}</div>
-                  <h3 className="font-black text-slate-900">{item.skill}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">{item.reason}</p>
+  if (page === "hr") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-7xl">
+          <header className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm">
+                <Users size={16} /> HR 招募管理
+              </div>
+              <h1 className="text-4xl font-black tracking-tight text-slate-950">職缺與投遞履歷管理</h1>
+              <p className="mt-2 text-slate-600">可新增多個職缺、查看職缺列表，並點進各職缺檢視投遞候選。</p>
+            </div>
+            <TopLogout onLogout={logout} />
+          </header>
+
+          <div className="grid gap-5 md:grid-cols-3">
+            <MiniMetric label="職缺數" value={jobList.length} icon={Briefcase} />
+            <MiniMetric label="目前職缺候選" value={candidateStats.total} icon={Users} />
+            <MiniMetric label="中高適配" value={candidateStats.high + candidateStats.medium} icon={BarChart3} />
+          </div>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+            <Card className="p-6 md:p-8">
+              <h2 className="flex items-center gap-2 text-2xl font-black">
+                <Briefcase className="text-indigo-600" /> 新增職缺
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">可先新增到前端職缺列表，也可同步到後端測試資料庫。</p>
+
+              <div className="mt-6 grid gap-5">
+                <Field label="公司名稱" value={jobRequirement.company} onChange={(v) => setJobField("company", v)} />
+                <Field label="職缺名稱" value={jobRequirement.title} onChange={(v) => setJobField("title", v)} />
+                <Field label="需求技能，逗號分隔" value={jobRequirement.required_skills} onChange={(v) => setJobField("required_skills", v)} multiline />
+                <div className="grid gap-5 md:grid-cols-2">
+                  <Field label="薪資範圍" value={jobRequirement.salary_range} onChange={(v) => setJobField("salary_range", v)} />
+                  <Field label="最低年資" value={jobRequirement.min_experience} onChange={(v) => setJobField("min_experience", v)} type="number" />
+                </div>
+                <Field label="職缺描述" value={jobRequirement.description} onChange={(v) => setJobField("description", v)} multiline />
+              </div>
+
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Button onClick={addLocalJob}>
+                  <Save size={16} /> 新增到職缺列表
+                </Button>
+                <Button variant="secondary" onClick={() => seedJobPosting()} disabled={loading}>
+                  {loading ? "同步中..." : "同步此職缺到後端"}
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-6 md:p-8">
+              <h2 className="flex items-center gap-2 text-2xl font-black">
+                <ClipboardList className="text-violet-600" /> 職缺列表
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">點選職缺後，會進入該職缺頁面查看投遞候選。</p>
+
+              <div className="mt-5 space-y-3">
+                {jobList.map((job) => (
+                  <button
+                    key={job.id}
+                    onClick={() => {
+                      setSelectedHrJobId(job.id);
+                      const firstCandidate = hrCandidates.find((candidate) => candidate.appliedJobId === job.id);
+                      setSelectedCandidateId(firstCandidate?.id || null);
+                      setHrReplyDraft("");
+                      setPage("hrJobDetail");
+                    }}
+                    className="w-full cursor-pointer rounded-3xl border border-slate-100 bg-white/75 p-4 text-left transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/60 hover:shadow-lg"
+                  >
+                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                      <div>
+                        <div className="text-lg font-black text-slate-900">{job.title}</div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          {job.company} · {job.salary_range}
+                        </div>
+                      </div>
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                        {hrCandidates.filter((candidate) => candidate.appliedJobId === job.id).length} 位投遞
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {message && (
+            <div className="mt-5">
+              <StatusNote type={messageType}>{message}</StatusNote>
+            </div>
+          )}
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "hrJobDetail") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-7xl">
+          <TopLogout onLogout={logout} />
+
+          <Button variant="ghost" onClick={() => setPage("hr")} className="mb-5">
+            <ArrowLeft size={16} /> 返回職缺列表
+          </Button>
+
+          <Card className="p-6 md:p-8">
+            <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">
+                  <Briefcase size={16} /> 職缺詳細資料
+                </div>
+                <h1 className="text-3xl font-black text-slate-950">{selectedHrJob?.title}</h1>
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  {selectedHrJob?.company} · {selectedHrJob?.salary_range}
+                </p>
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">{selectedHrJob?.description}</p>
+              </div>
+
+              <div className="rounded-3xl bg-slate-900 px-5 py-4 text-white shadow-lg shadow-slate-200">
+                <div className="text-3xl font-black">{candidatesForSelectedJob.length}</div>
+                <div className="text-xs font-semibold text-white/70">投遞候選</div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {(selectedHrJob?.required_skills || []).map((skill) => (
+                <span key={skill} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                  {skill}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Button variant="secondary" onClick={loadAnalysisResults} disabled={loading}>
+                <RefreshCw size={16} /> 載入後端分析紀錄
+              </Button>
+              <Button variant="secondary" onClick={() => setPage("hr")}>
+                管理其他職缺
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="mt-5 p-6 md:p-8">
+            <h2 className="flex items-center gap-2 text-2xl font-black">
+              <Users className="text-indigo-600" /> 投遞到此職缺的候選
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">點選候選後，可查看適配分數、推薦原因與技能缺口。</p>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="space-y-3">
+                {candidatesForSelectedJob.length === 0 ? (
+                  <StatusNote>目前此職缺尚無投遞候選。</StatusNote>
+                ) : (
+                  candidatesForSelectedJob.map((candidate) => {
+                    const level = getScoreLevel(candidate.score);
+                    const active = selectedCandidate?.id === candidate.id;
+
+                    return (
+                      <button
+                        key={candidate.id}
+                        onClick={() => {
+                          setSelectedCandidateId(candidate.id);
+                          setHrReplyDraft(candidate.hrReply?.replace(/^HR 回覆：/, "") || "");
+                        }}
+                        className={`w-full cursor-pointer rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                          active ? "border-indigo-200 bg-indigo-50/80 shadow-lg shadow-indigo-100" : "border-slate-100 bg-white/75 hover:bg-white"
+                        }`}
+                      >
+                        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                          <div>
+                            <div className="text-lg font-black text-slate-900">{candidate.name}</div>
+                            <div className="mt-1 text-sm text-slate-500">{candidate.target}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
+                            <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{candidate.score}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                          {candidate.status}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {selectedCandidate ? (
+                <div className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm">
+                  <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+                    <div>
+                      <h3 className="text-2xl font-black">{selectedCandidate.name} 的分析摘要</h3>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">{selectedCandidate.explanation}</p>
+                    </div>
+                    <ScoreRing score={selectedCandidate.score} />
+                  </div>
+
+                  <div className="mt-6 grid gap-5 md:grid-cols-2">
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <h4 className="font-black text-slate-900">已具備技能</h4>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(selectedCandidate.skills || []).length > 0 ? (
+                          selectedCandidate.skills.map((skill) => (
+                            <span key={skill} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                              {skill}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-slate-500">後端分析紀錄目前未提供履歷技能快照。</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl bg-slate-50 p-5">
+                      <h4 className="font-black text-slate-900">缺口 / 可追問項目</h4>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(selectedCandidate.gap || []).map((skill) => (
+                          <span key={skill} className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 rounded-3xl border border-slate-100 bg-slate-50 p-5">
+                    <h4 className="font-black text-slate-900">HR 回覆意見，選填</h4>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">可直接選擇或拒絕；若有填寫意見，求職者端投遞紀錄會看到這段回覆。</p>
+                    <textarea
+                      value={hrReplyDraft}
+                      onChange={(e) => setHrReplyDraft(e.target.value)}
+                      rows={4}
+                      className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                      placeholder="例如：您的後端基礎符合需求，建議補充雲端部署作品後安排下一步。"
+                    />
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Button variant="success" onClick={() => updateCandidateDecision(selectedCandidate, "selected")}>
+                        <CheckCircle2 size={16} /> 選擇
+                      </Button>
+                      <Button variant="danger" onClick={() => updateCandidateDecision(selectedCandidate, "rejected")}>
+                        拒絕
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <StatusNote>請先選擇一位候選查看分析摘要。</StatusNote>
+              )}
+            </div>
+          </Card>
+
+          {message && (
+            <div className="mt-5">
+              <StatusNote type={messageType}>{message}</StatusNote>
+            </div>
+          )}
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "advisor" || page === "scenario") {
+    const pageInfo = {
+      advisor: {
+        title: "AI 職涯顧問",
+        icon: Lightbulb,
+        description: "先用靜態建議呈現聊天機器人區塊，之後可接 LLM 或問答 API。",
+        cards: [
+          { title: "履歷建議", subtitle: "優先補強", text: "請在專案經驗中加入具體成果，例如效能提升比例、使用者數、部署環境。" },
+          { title: "學習建議", subtitle: "未來 3 個月", text: "建議完成 Redis 快取實作、Kubernetes 部署，以及一個高併發後端小專案。" },
+          { title: "面試準備", subtitle: "系統設計", text: "可以練習短網址服務、排隊系統、推薦系統等常見系統設計題。" },
+        ],
+      },
+      scenario: {
+        title: "情境模擬",
+        icon: Compass,
+        description: "先以前端模擬方式呈現「如果我學會某技能」的結果，之後可由後端 AI 模型回傳新版分數。",
+        cards: [
+          { title: "如果我學會 Kubernetes", subtitle: "+10 分", text: "可提升雲端部署與服務維運相關職缺的競爭力。" },
+          { title: "如果我學會 Redis", subtitle: "+7 分", text: "可補強快取、高併發與後端效能優化能力。" },
+          { title: "如果我完成系統設計專案", subtitle: "+8 分", text: "可提升資深後端職缺的架構思考與可解釋加分項。" },
+        ],
+      },
+    }[page];
+
+    const Icon = pageInfo.icon;
+
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-6xl">
+          <TopLogout onLogout={logout} />
+
+          <Button variant="ghost" onClick={() => setPage("home")} className="mb-5">
+            <ArrowLeft size={16} /> 返回求職者首頁
+          </Button>
+
+          <Card className="p-6 md:p-8">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <h1 className="flex items-center gap-3 text-3xl font-black">
+                  <Icon className="text-indigo-600" /> {pageInfo.title}
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{pageInfo.description}</p>
+              </div>
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+                <AlertCircle className="mr-2 inline" size={16} /> 前端預留功能
+              </div>
+            </div>
+
+            <div className="mt-7 grid gap-5 md:grid-cols-3">
+              {pageInfo.cards.map((card) => (
+                <div key={card.title} className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm">
+                  <div className="text-xs font-bold uppercase tracking-wide text-indigo-600">{card.subtitle}</div>
+                  <h2 className="mt-2 text-xl font-black text-slate-900">{card.title}</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">{card.text}</p>
                 </div>
               ))}
             </div>
           </Card>
-
-          <Card className="p-6">
-            <h2 className="flex items-center gap-2 text-2xl font-black"><TrendingUp className="text-sky-600" /> 薪資影響</h2>
-            <p className="mt-4 whitespace-pre-line rounded-3xl bg-white/75 p-5 text-sm leading-7 text-slate-700 shadow-sm">
-              {analysis?.salary_impact || "目前正在整理薪資影響。"}
-            </p>
-          </Card>
         </div>
+      </AppShell>
+    );
+  }
 
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={() => alert("投遞履歷功能將於下一階段加入")}>投遞履歷</Button>
-          <Button variant="secondary" onClick={() => alert("情境模擬功能將於下一階段加入")}>情境模擬</Button>
-          <Button onClick={() => setPage("resume")}>回去優化履歷</Button>
-        </div>
-      </div>
-    </AppShell>
-  );
+  return null;
 }
