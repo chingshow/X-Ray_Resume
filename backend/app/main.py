@@ -331,7 +331,23 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
         print(f"[WARNING] Gemini API 失敗，降級為 mock: {e}")
         ai_result = _mock_ai_analysis(resume, job)
 
-    # 4. Save analysis result (one per resume+job pair, upsert)
+    # 4. Save analysis result (upsert by resume_id + job_id)
+    #    Also look up the application_id so HR can JOIN directly.
+    application_id = None
+    try:
+        app_resp = (
+            supabase.table("applications")
+            .select("id")
+            .eq("resume_id", resume["id"])
+            .eq("job_id", job["id"])
+            .limit(1)
+            .execute()
+        )
+        if app_resp.data:
+            application_id = app_resp.data[0]["id"]
+    except Exception as e:
+        print(f"[WARNING] 查詢 application_id 失敗: {e}")
+
     analysis_payload = {
         "resume_id": resume["id"],
         "job_id": job["id"],
@@ -342,6 +358,8 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
         "salary_impact": ai_result["salary_impact"],
         "priority_skills": ai_result["priority_skills"],
     }
+    if application_id:
+        analysis_payload["application_id"] = application_id
 
     try:
         existing_analysis = (
@@ -472,7 +490,7 @@ def create_job(
 
 @app.get("/jobs/my", tags=["💼 職缺"])
 def list_my_jobs(user: Dict = Depends(require_role("hr"))):
-    """HR: list all jobs created by this HR account."""
+    """HR: list all jobs created by this HR account, with application_count per job."""
     try:
         resp = (
             supabase.table("job_postings")
@@ -481,7 +499,32 @@ def list_my_jobs(user: Dict = Depends(require_role("hr"))):
             .order("created_at", desc=True)
             .execute()
         )
-        return resp.data or []
+        jobs = resp.data or []
+
+        if not jobs:
+            return []
+
+        # Fetch application counts for all jobs in one query
+        job_ids = [job["id"] for job in jobs]
+        apps_resp = (
+            supabase.table("applications")
+            .select("job_id")
+            .in_("job_id", job_ids)
+            .execute()
+        )
+        apps_data = apps_resp.data or []
+
+        # Count applications per job_id
+        count_map: Dict[str, int] = {}
+        for app in apps_data:
+            jid = app["job_id"]
+            count_map[jid] = count_map.get(jid, 0) + 1
+
+        # Attach application_count to each job
+        for job in jobs:
+            job["application_count"] = count_map.get(job["id"], 0)
+
+        return jobs
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
 
@@ -493,14 +536,49 @@ def get_job_applications(
 ):
     """HR: get all applications for a specific job with resume and analysis info."""
     try:
+        # Step 1: fetch applications with resume + user info
         apps_resp = (
             supabase.table("applications")
-            .select("*, resumes(*, users(display_name, username)), analysis_results(*)")
+            .select("*, resumes(*, users(display_name, username))")
             .eq("job_id", job_id)
             .order("created_at", desc=True)
             .execute()
         )
-        return apps_resp.data or []
+        apps = apps_resp.data or []
+
+        if not apps:
+            return []
+
+        # Step 2: fetch analysis_results for this job in one query,
+        # keyed by application_id (preferred) or resume_id (fallback)
+        resume_ids = [a["resume_id"] for a in apps if a.get("resume_id")]
+        analysis_resp = (
+            supabase.table("analysis_results")
+            .select("*")
+            .eq("job_id", job_id)
+            .in_("resume_id", resume_ids)
+            .execute()
+        )
+        analysis_list = analysis_resp.data or []
+
+        # Build lookup maps
+        analysis_by_app_id: Dict[str, dict] = {}
+        analysis_by_resume_id: Dict[str, dict] = {}
+        for ar in analysis_list:
+            if ar.get("application_id"):
+                analysis_by_app_id[ar["application_id"]] = ar
+            if ar.get("resume_id"):
+                analysis_by_resume_id[ar["resume_id"]] = ar
+
+        # Step 3: merge
+        for app in apps:
+            ar = (
+                analysis_by_app_id.get(app["id"])
+                or analysis_by_resume_id.get(app.get("resume_id"))
+            )
+            app["analysis_results"] = [ar] if ar else []
+
+        return apps
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
 
