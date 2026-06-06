@@ -222,6 +222,7 @@ def upsert_resume(
 
     data = body.model_dump(exclude_unset=True)
     data["user_id"] = user["id"]
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     try:
         # Check if resume already exists for this user
