@@ -1237,7 +1237,7 @@ export default function XRayResumeJobseekerFrontend() {
               </div>
               <h1 className="text-3xl font-black">{roleLabel}註冊</h1>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                填寫以下資料建立帳號，密碼會以 SHA-256 加密儲存。
+                填寫以下資料建立帳號
               </p>
             </div>
 
