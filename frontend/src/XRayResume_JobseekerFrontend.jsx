@@ -435,7 +435,7 @@ export default function XRayResumeJobseekerFrontend() {
       ["姓名", currentUser?.display_name || resume.full_name],
       ["性別", resume.gender],
       ["目標職位", resume.target_role],
-      ["學歷", resume.education],
+      ["學經歷", resume.education],
       ["技能", resume.skills],
       ["期望薪資", resume.expected_salary],
     ];
