@@ -47,6 +47,8 @@ const emptyResume = {
   full_name: "",
   gender: "",
   education: "",
+  experience: "",
+  projects: "",
   skills: "",
   certifications: "",
   awards: "",
@@ -58,6 +60,10 @@ const initialResume = {
   full_name: "王小明",
   gender: "male",
   education: "國立台灣大學 資訊工程學系 學士",
+  experience:
+    "新創科技股份有限公司｜後端工程師｜2022/07 - 2024/06｜負責後端 API 開發與資料庫串接\n學校專題實驗室｜研究助理｜2021/09 - 2022/06｜協助資料整理與系統測試",
+  projects:
+    "X-Ray Resume｜可解釋履歷分析與職缺匹配平台｜React、FastAPI、Supabase",
   skills: "Python, FastAPI, PostgreSQL, Docker",
   certifications: "AWS Certified Cloud Practitioner",
   awards: "2023 校內黑客松第二名",
@@ -134,6 +140,69 @@ function splitList(value) {
     .split(/[,，\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parseExperience(value) {
+  return String(value || "")
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(/[｜|]/).map((item) => item.trim());
+
+      return {
+        company: parts[0] || "",
+        title: parts[1] || "",
+        duration: parts[2] || "",
+        description: parts.slice(3).join("｜") || "",
+      };
+    });
+}
+
+function parseProjects(value) {
+  return String(value || "")
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(/[｜|]/).map((item) => item.trim());
+
+      return {
+        name: parts[0] || "",
+        description: parts[1] || "",
+        tech_stack: parts.slice(2).join("｜") || "",
+      };
+    });
+}
+
+function formatExperience(items) {
+  if (!Array.isArray(items)) return "";
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+
+      return [item.company, item.title, item.duration, item.description]
+        .filter(Boolean)
+        .join("｜");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatProjects(items) {
+  if (!Array.isArray(items)) return "";
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+
+      return [item.name, item.description, item.tech_stack || item.url]
+        .filter(Boolean)
+        .join("｜");
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function requestJSON(endpoint, options = {}) {
@@ -397,11 +466,20 @@ export default function XRayResumeJobseekerFrontend() {
   const [messageType, setMessageType] = useState("info");
 
   const completion = useMemo(() => {
-    const required = [resume.full_name, resume.gender, resume.education, resume.skills, resume.expected_salary, resume.target_role];
-    const filledRequired = required.filter((value) => String(value || "").trim().length > 0).length;
-    const optional = [resume.certifications, resume.awards].filter((value) => String(value || "").trim().length > 0).length;
-    return Math.min(100, Math.round(((filledRequired + optional * 0.5) / 7) * 100));
-  }, [resume]);
+  const required = [
+    resume.full_name,
+    resume.gender,
+    resume.education,
+    resume.experience,
+    resume.projects,
+    resume.skills,
+    resume.expected_salary,
+    resume.target_role,
+  ];
+  const filledRequired = required.filter((value) => String(value || "").trim().length > 0).length;
+  const optional = [resume.certifications, resume.awards].filter((value) => String(value || "").trim().length > 0).length;
+  return Math.min(100, Math.round(((filledRequired + optional * 0.5) / 9) * 100));
+}, [resume]);
 
   const selectedHrJob = jobList.find((job) => job.id === selectedHrJobId) || jobList[0] || null;
 
@@ -431,23 +509,25 @@ export default function XRayResumeJobseekerFrontend() {
   }
 
   function validateResumeForSave() {
-    const requiredFields = [
-      ["姓名", currentUser?.display_name || resume.full_name],
-      ["性別", resume.gender],
-      ["目標職位", resume.target_role],
-      ["學經歷", resume.education],
-      ["技能", resume.skills],
-      ["期望薪資", resume.expected_salary],
-    ];
-    const missing = requiredFields.filter(([, value]) => !String(value || "").trim()).map(([label]) => label);
+  const requiredFields = [
+    ["姓名", currentUser?.display_name || resume.full_name],
+    ["性別", resume.gender],
+    ["目標職位", resume.target_role],
+    ["學歷", resume.education],
+    ["工作經驗", resume.experience],
+    ["專案作品", resume.projects],
+    ["技能", resume.skills],
+    ["期望薪資", resume.expected_salary],
+  ];
+  const missing = requiredFields.filter(([, value]) => !String(value || "").trim()).map(([label]) => label);
 
-    if (missing.length > 0) {
-      showMessage(`請先補齊必填欄位：${missing.join("、")}。`, "warning");
-      return false;
-    }
-
-    return true;
+  if (missing.length > 0) {
+    showMessage(`請先補齊必填欄位：${missing.join("、")}。`, "warning");
+    return false;
   }
+
+  return true;
+}
 
   async function logout() {
     try {
@@ -582,25 +662,22 @@ export default function XRayResumeJobseekerFrontend() {
   }
 
   function buildResumePayload() {
-    return {
-      full_name: currentUser?.display_name || resume.full_name,
-      gender: resume.gender || null,
-      education: resume.education,
-      skills: splitList(resume.skills),
-      certifications: splitList(resume.certifications),
-      awards: splitList(resume.awards),
-      completion_rate: completion,
-      experience: [
-        { company: "新創科技股份有限公司", title: "後端工程師", duration: "2022/07 - 2024/06" },
-        { company: "學校專題實驗室", title: "研究助理", duration: "2021/09 - 2022/06" },
-      ],
-      projects: [{ name: "X-Ray Resume", url: "https://github.com/example/xray-resume" }],
-      preferences: {
-        expected_salary: resume.expected_salary,
-        target_role: resume.target_role,
-      },
-    };
-  }
+  return {
+    full_name: currentUser?.display_name || resume.full_name,
+    gender: resume.gender || null,
+    education: resume.education,
+    experience: parseExperience(resume.experience),
+    projects: parseProjects(resume.projects),
+    skills: splitList(resume.skills),
+    certifications: splitList(resume.certifications),
+    awards: splitList(resume.awards),
+    completion_rate: completion,
+    preferences: {
+      expected_salary: resume.expected_salary,
+      target_role: resume.target_role,
+    },
+  };
+}
 
   function buildJobPayload(job = jobRequirement) {
     return {
@@ -624,15 +701,17 @@ export default function XRayResumeJobseekerFrontend() {
       if (data?.data) {
         const r = data.data;
         setResume({
-          full_name: r.full_name || displayName,
-          gender: r.gender || "",
-          education: r.education || "",
-          skills: Array.isArray(r.skills) ? r.skills.join(", ") : r.skills || "",
-          certifications: Array.isArray(r.certifications) ? r.certifications.join(", ") : r.certifications || "",
-          awards: Array.isArray(r.awards) ? r.awards.join(", ") : r.awards || "",
-          expected_salary: r.preferences?.expected_salary || "",
-          target_role: r.preferences?.target_role || "",
-        });
+  full_name: r.full_name || displayName,
+  gender: r.gender || "",
+  education: r.education || "",
+  experience: formatExperience(r.experience),
+  projects: formatProjects(r.projects),
+  skills: Array.isArray(r.skills) ? r.skills.join(", ") : r.skills || "",
+  certifications: Array.isArray(r.certifications) ? r.certifications.join(", ") : r.certifications || "",
+  awards: Array.isArray(r.awards) ? r.awards.join(", ") : r.awards || "",
+  expected_salary: r.preferences?.expected_salary || "",
+  target_role: r.preferences?.target_role || "",
+});
       } else {
         setResume({ ...emptyResume, full_name: displayName });
       }
@@ -1501,7 +1580,29 @@ export default function XRayResumeJobseekerFrontend() {
                 required
               />
               <Field label="目標職位" value={resume.target_role} onChange={(v) => setResumeField("target_role", v)} disabled={readOnly} required />
+
               <Field label="學歷" value={resume.education} onChange={(v) => setResumeField("education", v)} multiline disabled={readOnly} required />
+
+              <Field
+                label="工作經驗"
+                value={resume.experience}
+                onChange={(v) => setResumeField("experience", v)}
+                multiline
+                disabled={readOnly}
+                required
+                helpText="每行一筆，建議格式：公司｜職稱｜期間｜說明"
+              />
+
+              <Field
+                label="專案作品"
+                value={resume.projects}
+                onChange={(v) => setResumeField("projects", v)}
+                multiline
+                disabled={readOnly}
+                required
+                helpText="每行一筆，建議格式：專案名稱｜專案說明｜使用技術"
+              />
+
               <Field label="技能 (,分隔)" value={resume.skills} onChange={(v) => setResumeField("skills", v)} multiline disabled={readOnly} required />
               <Field label="證照" value={resume.certifications} onChange={(v) => setResumeField("certifications", v)} multiline disabled={readOnly} helpText="選填，可填 AWS、Google、語言檢定等證照。" />
               <Field label="獎項 / 其他加分項" value={resume.awards} onChange={(v) => setResumeField("awards", v)} multiline disabled={readOnly} helpText="選填，可填競賽、社團、志工、作品亮點。" />
