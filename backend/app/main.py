@@ -1160,9 +1160,10 @@ def analyze_resume_for_job(
     resume_updated_at = resume.get("updated_at") or resume.get("created_at")
 
     if cached:
-        analysis_created_at = cached.get("created_at")
+        # 優先抓取分析結果最後更新的時間，如果沒有才用建立時間
+        analysis_time = cached.get("updated_at") or cached.get("created_at")
         # Return cache when analysis is newer than the last resume update
-        if resume_updated_at and analysis_created_at:
+        if resume_updated_at and analysis_time:
             from datetime import datetime
             try:
                 # Normalize both timestamps for comparison
@@ -1170,7 +1171,7 @@ def analyze_resume_for_job(
                     ts = str(ts).replace("Z", "+00:00")
                     return datetime.fromisoformat(ts)
 
-                if _parse_ts(analysis_created_at) >= _parse_ts(resume_updated_at):
+                if _parse_ts(analysis_time) >= _parse_ts(resume_updated_at):
                     return {
                         "cached": True,
                         "analysis_id": cached["id"],
