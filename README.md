@@ -79,8 +79,9 @@ cd backend
 
 python3 -m venv .venv
 source .venv/bin/activate
+
 pip install -r requirements.txt
-pip install supabase
+pip install supabase google-genai
 
 uvicorn app.main:app --reload
 ```
@@ -92,6 +93,8 @@ cd backend
 
 conda env create -f environment.yml
 conda activate webapp
+
+pip install google-genai
 
 uvicorn app.main:app --reload
 ```

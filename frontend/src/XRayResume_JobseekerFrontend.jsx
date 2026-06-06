@@ -28,11 +28,42 @@ import {
   Users,
 } from "lucide-react";
 
-const API_BASE = "/api";
+const API_BASE = "";
+
+// ---------------------------------------------------------------------------
+// Auth-aware fetch helper
+// ---------------------------------------------------------------------------
+let _authToken = null;
+
+function setAuthToken(token) {
+  _authToken = token;
+}
+
+function getAuthToken() {
+  return _authToken;
+}
+
+const emptyResume = {
+  full_name: "",
+  gender: "",
+  education: "",
+  experience: "",
+  projects: "",
+  skills: "",
+  certifications: "",
+  awards: "",
+  expected_salary: "",
+  target_role: "",
+};
 
 const initialResume = {
   full_name: "王小明",
+  gender: "male",
   education: "國立台灣大學 資訊工程學系 學士",
+  experience:
+    "新創科技股份有限公司｜後端工程師｜2022/07 - 2024/06｜負責後端 API 開發與資料庫串接\n學校專題實驗室｜研究助理｜2021/09 - 2022/06｜協助資料整理與系統測試",
+  projects:
+    "X-Ray Resume｜可解釋履歷分析與職缺匹配平台｜React、FastAPI、Supabase",
   skills: "Python, FastAPI, PostgreSQL, Docker",
   certifications: "AWS Certified Cloud Practitioner",
   awards: "2023 校內黑客松第二名",
@@ -50,6 +81,12 @@ const initialJobRequirement = {
 };
 
 const initialLogin = {
+  username: "",
+  password: "",
+};
+
+const initialRegister = {
+  display_name: "",
   username: "",
   password: "",
 };
@@ -95,93 +132,8 @@ const mockAnalysis = {
   ],
 };
 
-const initialJobList = [
-  {
-    id: "job-1",
-    title: "資深後端工程師",
-    company: "金融科技公司 A",
-    required_skills: ["Python", "FastAPI", "Kubernetes", "Redis", "System Design"],
-    salary_range: "NT$1,000,000 – NT$1,500,000/年",
-    min_experience: 3,
-    description: "負責設計與開發高併發後端服務，需具備雲端部署與系統架構設計能力。",
-    match_score: 72,
-  },
-  {
-    id: "job-2",
-    title: "全端工程師",
-    company: "新創科技公司 B",
-    required_skills: ["React", "Node.js", "PostgreSQL", "Docker"],
-    salary_range: "NT$850,000 – NT$1,200,000/年",
-    min_experience: 2,
-    description: "參與產品前後端開發，需能與設計、產品與後端團隊協作。",
-    match_score: 68,
-  },
-  {
-    id: "job-3",
-    title: "雲端應用工程師",
-    company: "雲端服務公司 C",
-    required_skills: ["AWS", "Docker", "Kubernetes", "CI/CD"],
-    salary_range: "NT$900,000 – NT$1,300,000/年",
-    min_experience: 2,
-    description: "負責雲端環境部署、服務監控與自動化流程建置。",
-    match_score: 61,
-  },
-];
-
-const initialApplications = [
-  {
-    id: "app-1",
-    candidateId: "candidate-1",
-    jobId: "job-2",
-    jobTitle: "全端工程師",
-    company: "新創科技公司 B",
-    status: "HR 已查看",
-    reply: "HR 回覆：您的前後端背景符合初步需求，建議補充一個完整部署作品後安排下一步。",
-    createdAt: "2026/05/31",
-  },
-];
-
-const initialCandidates = [
-  {
-    id: "candidate-1",
-    appId: "app-1",
-    name: "王小明",
-    target: "後端工程師 / 全端工程師",
-    score: 72,
-    skills: ["Python", "FastAPI", "PostgreSQL", "Docker"],
-    gap: ["Kubernetes", "Redis", "System Design"],
-    appliedJobId: "job-2",
-    status: "HR 已查看",
-    hrReply: "您的前後端背景符合初步需求，建議補充一個完整部署作品後安排下一步。",
-    explanation: "已具備後端開發基礎，若補強雲端部署、快取與系統設計能力，會更符合資深後端職缺。",
-  },
-  {
-    id: "candidate-2",
-    appId: null,
-    name: "林子涵",
-    target: "資料工程師",
-    score: 66,
-    skills: ["Python", "SQL", "ETL", "Tableau"],
-    gap: ["FastAPI", "Cloud Deployment"],
-    appliedJobId: "job-1",
-    status: "待處理",
-    hrReply: "",
-    explanation: "資料處理能力佳，但與後端職缺的 API 開發與部署經驗仍有落差。",
-  },
-  {
-    id: "candidate-3",
-    appId: null,
-    name: "陳品安",
-    target: "初階軟體工程師",
-    score: 58,
-    skills: ["JavaScript", "React", "Node.js"],
-    gap: ["Python", "FastAPI", "System Design"],
-    appliedJobId: "job-1",
-    status: "待處理",
-    hrReply: "",
-    explanation: "前端與 Node.js 經驗可加分，但核心後端技術棧尚未完全符合此職缺。",
-  },
-];
+const initialJobList = [];
+const initialApplications = [];
 
 function splitList(value) {
   return String(value || "")
@@ -190,8 +142,82 @@ function splitList(value) {
     .filter(Boolean);
 }
 
+function parseExperience(value) {
+  return String(value || "")
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(/[｜|]/).map((item) => item.trim());
+
+      return {
+        company: parts[0] || "",
+        title: parts[1] || "",
+        duration: parts[2] || "",
+        description: parts.slice(3).join("｜") || "",
+      };
+    });
+}
+
+function parseProjects(value) {
+  return String(value || "")
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(/[｜|]/).map((item) => item.trim());
+
+      return {
+        name: parts[0] || "",
+        description: parts[1] || "",
+        tech_stack: parts.slice(2).join("｜") || "",
+      };
+    });
+}
+
+function formatExperience(items) {
+  if (!Array.isArray(items)) return "";
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+
+      return [item.company, item.title, item.duration, item.description]
+        .filter(Boolean)
+        .join("｜");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatProjects(items) {
+  if (!Array.isArray(items)) return "";
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+
+      return [item.name, item.description, item.tech_stack || item.url]
+        .filter(Boolean)
+        .join("｜");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 async function requestJSON(endpoint, options = {}) {
-  const response = await fetch(`${API_BASE}${endpoint}`, options);
+  const token = getAuthToken();
+  const headers = {
+    ...(options.headers || {}),
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
   const text = await response.text();
   let data = null;
 
@@ -241,11 +267,11 @@ function Button({ children, variant = "primary", className = "", ...props }) {
     ghost:
       "text-slate-600 hover:bg-white/80 hover:text-indigo-700 hover:shadow-md active:scale-[0.99]",
     soft:
-      "bg-indigo-50 text-indigo-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-indigo-100 border border-indigo-100 hover:shadow-lg hover:shadow-indigo-100 active:translate-y-0 active:scale-[0.99]",
+      "bg-indigo-50 text-indigo-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-indigo-100 border border-indigo-100 hover:shadow-lg hover:shadow-indigo-100 active:scale-[0.99]",
     danger:
-      "bg-rose-50 text-rose-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-rose-100 border border-rose-100 hover:shadow-lg hover:shadow-rose-100 active:translate-y-0 active:scale-[0.99]",
+      "bg-rose-50 text-rose-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-rose-100 border border-rose-100 hover:shadow-lg hover:shadow-rose-100 active:scale-[0.99]",
     success:
-      "bg-emerald-50 text-emerald-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-emerald-100 border border-emerald-100 hover:shadow-lg hover:shadow-emerald-100 active:translate-y-0 active:scale-[0.99]",
+      "bg-emerald-50 text-emerald-700 hover:-translate-y-1 hover:scale-[1.02] hover:bg-emerald-100 border border-emerald-100 hover:shadow-lg hover:shadow-emerald-100 active:scale-[0.99]",
   };
 
   return (
@@ -258,13 +284,26 @@ function Button({ children, variant = "primary", className = "", ...props }) {
   );
 }
 
-function Field({ label, value, onChange, multiline = false, disabled = false, type = "text", placeholder = "" }) {
+function Field({
+  label,
+  value,
+  onChange,
+  multiline = false,
+  disabled = false,
+  type = "text",
+  placeholder = "",
+  required = false,
+  helpText = "",
+}) {
   const baseClass =
     "w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-500";
 
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+        {required && <span className="ml-1 text-rose-500">*</span>}
+      </span>
       {multiline ? (
         <textarea
           value={value}
@@ -284,6 +323,33 @@ function Field({ label, value, onChange, multiline = false, disabled = false, ty
           placeholder={placeholder}
         />
       )}
+      {helpText && <span className="mt-1 block text-xs leading-5 text-slate-400">{helpText}</span>}
+    </label>
+  );
+}
+
+function SelectField({ label, value, onChange, options, disabled = false, required = false, helpText = "" }) {
+  const baseClass =
+    "w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-500 cursor-pointer";
+
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+        {required && <span className="ml-1 text-rose-500">*</span>}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={baseClass}
+      >
+        <option value="">請選擇...</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      {helpText && <span className="mt-1 block text-xs leading-5 text-slate-400">{helpText}</span>}
     </label>
   );
 }
@@ -299,12 +365,30 @@ function StatusNote({ children, type = "info" }) {
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${styles[type] || styles.info}`}>{children}</div>;
 }
 
+function LoadingOverlay({
+  show,
+  title = "處理中...",
+  description = "可能需要幾秒鐘，請稍候，請勿關閉頁面。",
+}) {
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[32px] bg-white p-8 text-center shadow-2xl shadow-slate-900/20">
+        <div className="mx-auto mb-5 h-14 w-14 animate-spin rounded-full border-4 border-indigo-100 border-t-indigo-600" />
+        <h2 className="text-2xl font-black text-slate-900">{title}</h2>
+        <p className="mt-3 text-sm font-semibold leading-6 text-indigo-600">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 function ScoreRing({ score = 0 }) {
   const normalized = Math.max(0, Math.min(100, Number(score) || 0));
   const background = `conic-gradient(rgb(79 70 229) ${normalized * 3.6}deg, rgb(226 232 240) 0deg)`;
 
   return (
-    <div className="relative grid h-40 w-40 place-items-center rounded-full shadow-inner" style={{ background }}>
+    <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full shadow-inner" style={{ background, minWidth: "10rem", minHeight: "10rem" }}>
       <div className="grid h-28 w-28 place-items-center rounded-full bg-white">
         <div className="text-center">
           <div className="text-4xl font-black text-slate-900">{normalized}</div>
@@ -353,47 +437,68 @@ export default function XRayResumeJobseekerFrontend() {
   const [page, setPage] = useState("landing");
   const [selectedRole, setSelectedRole] = useState("jobseeker");
   const [login, setLogin] = useState(initialLogin);
+  const [registerForm, setRegisterForm] = useState(initialRegister);
   const [currentUser, setCurrentUser] = useState(null);
+  const [authToken, setAuthTokenState] = useState(null);
 
   const [mode, setMode] = useState("view");
   const [resume, setResume] = useState(initialResume);
   const [jobRequirement, setJobRequirement] = useState(initialJobRequirement);
   const [jobList, setJobList] = useState(initialJobList);
-  const [selectedHrJobId, setSelectedHrJobId] = useState(initialJobList[0].id);
+  const [selectedHrJobId, setSelectedHrJobId] = useState(null);
 
   const [favoriteJobIds, setFavoriteJobIds] = useState([]);
   const [applications, setApplications] = useState(initialApplications);
   const [analysis, setAnalysis] = useState(null);
   const [analysisHistory, setAnalysisHistory] = useState([]);
-  const [hrCandidates, setHrCandidates] = useState(initialCandidates);
-  const [selectedCandidateId, setSelectedCandidateId] = useState(initialCandidates[0].id);
+  const [hrCandidates, setHrCandidates] = useState([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [hrReplyDraft, setHrReplyDraft] = useState("");
+
+  // jobAnalysisCache: { [jobId]: { match_score, shap_values, scenario_simulation, priority_skills, skill_gaps, salary_impact, analysis_id } }
+  const [jobAnalysisCache, setJobAnalysisCache] = useState({});
+  const [analyzingJobId, setAnalyzingJobId] = useState(null);
 
   const [apiStatus, setApiStatus] = useState("unknown");
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
   const completion = useMemo(() => {
-    const fields = Object.values(resume).filter((value) => String(value).trim().length > 0).length;
-    return Math.round((fields / Object.keys(resume).length) * 100);
-  }, [resume]);
+  const required = [
+    resume.full_name,
+    resume.gender,
+    resume.education,
+    resume.experience,
+    resume.projects,
+    resume.skills,
+    resume.expected_salary,
+    resume.target_role,
+  ];
+  const filledRequired = required.filter((value) => String(value || "").trim().length > 0).length;
+  const optional = [resume.certifications, resume.awards].filter((value) => String(value || "").trim().length > 0).length;
+  return Math.min(100, Math.round(((filledRequired + optional * 0.5) / 9) * 100));
+}, [resume]);
 
-  const selectedHrJob = jobList.find((job) => job.id === selectedHrJobId) || jobList[0];
+  const selectedHrJob = jobList.find((job) => job.id === selectedHrJobId) || jobList[0] || null;
 
   const candidatesForSelectedJob = useMemo(() => {
     return hrCandidates.filter((candidate) => candidate.appliedJobId === selectedHrJob?.id);
   }, [hrCandidates, selectedHrJob]);
 
-  const selectedCandidate = hrCandidates.find((candidate) => candidate.id === selectedCandidateId) || candidatesForSelectedJob[0] || null;
+  const selectedCandidate =
+    hrCandidates.find((candidate) => candidate.id === selectedCandidateId) || candidatesForSelectedJob[0] || null;
 
   const candidateStats = useMemo(() => {
-    const total = candidatesForSelectedJob.length;
-    const high = candidatesForSelectedJob.filter((candidate) => Number(candidate.score) >= 75).length;
-    const medium = candidatesForSelectedJob.filter((candidate) => Number(candidate.score) >= 60 && Number(candidate.score) < 75).length;
+    const total = jobList.reduce((sum, job) => sum + (job.application_count ?? 0), 0);
+    const high = candidatesForSelectedJob.filter((candidate) => candidate.hasAnalysis && Number(candidate.score) >= 75).length;
+    const medium = candidatesForSelectedJob.filter(
+      (candidate) => candidate.hasAnalysis && Number(candidate.score) >= 60 && Number(candidate.score) < 75
+    ).length;
 
     return { total, high, medium };
-  }, [candidatesForSelectedJob]);
+  }, [jobList, candidatesForSelectedJob]);
 
   const setResumeField = (key, value) => setResume((prev) => ({ ...prev, [key]: value }));
   const setJobField = (key, value) => setJobRequirement((prev) => ({ ...prev, [key]: value }));
@@ -403,10 +508,44 @@ export default function XRayResumeJobseekerFrontend() {
     setMessageType(type);
   }
 
-  function logout() {
+  function validateResumeForSave() {
+  const requiredFields = [
+    ["姓名", currentUser?.display_name || resume.full_name],
+    ["性別", resume.gender],
+    ["目標職位", resume.target_role],
+    ["學歷", resume.education],
+    ["工作經驗", resume.experience],
+    ["專案作品", resume.projects],
+    ["技能", resume.skills],
+    ["期望薪資", resume.expected_salary],
+  ];
+  const missing = requiredFields.filter(([, value]) => !String(value || "").trim()).map(([label]) => label);
+
+  if (missing.length > 0) {
+    showMessage(`請先補齊必填欄位：${missing.join("、")}。`, "warning");
+    return false;
+  }
+
+  return true;
+}
+
+  async function logout() {
+    try {
+      await requestJSON("/auth/logout", { method: "POST" });
+    } catch {
+      // silently ignore logout errors
+    }
+    setAuthToken(null);
+    setAuthTokenState(null);
     setCurrentUser(null);
     setLogin(initialLogin);
+    setRegisterForm(initialRegister);
     setMessage("");
+    setJobList([]);
+    setApplications([]);
+    setFavoriteJobIds([]);
+    setHrCandidates([]);
+    setResume(initialResume);
     setPage("landing");
   }
 
@@ -414,10 +553,56 @@ export default function XRayResumeJobseekerFrontend() {
     setSelectedRole(role);
     setMessage("");
     setLogin(initialLogin);
+    setRegisterForm(initialRegister);
     setPage("login");
   }
 
-  function handleLogin(event) {
+  function goRegister() {
+    setMessage("");
+    setRegisterForm(initialRegister);
+    setPage("register");
+  }
+
+  async function handleDemoRegister(event) {
+    event.preventDefault();
+
+    const { display_name, username, password } = registerForm;
+    if (!display_name.trim() || !username.trim() || !password.trim()) {
+      showMessage("請填寫姓名、使用者名稱與密碼。", "warning");
+      return;
+    }
+    if (password.length < 6) {
+      showMessage("密碼至少需要 6 個字元。", "warning");
+      return;
+    }
+
+    setLoading(true);
+    setLoadingText("建立帳號中...");
+    setMessage("");
+
+    try {
+      await requestJSON("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          display_name: display_name.trim(),
+          username: username.trim(),
+          password: password.trim(),
+          role: selectedRole,
+        }),
+      });
+      showMessage("帳號建立成功！請使用新帳號登入。", "success");
+      setRegisterForm(initialRegister);
+      setPage("login");
+    } catch (error) {
+      console.error("註冊 API 錯誤：", error);
+      showMessage(error.message || "帳號建立失敗，請稍後再試。", "error");
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+    }
+  }
+
+  async function handleLogin(event) {
     event.preventDefault();
 
     if (!login.username.trim() || !login.password.trim()) {
@@ -425,38 +610,265 @@ export default function XRayResumeJobseekerFrontend() {
       return;
     }
 
-    setCurrentUser({ username: login.username.trim(), role: selectedRole });
-    showMessage("登入成功。此階段先以前端模擬登入，之後可接後端會員系統。", "success");
-    setPage(selectedRole === "hr" ? "hr" : "home");
+    setLoading(true);
+    setLoadingText("登入中...");
+    setMessage("");
+
+    try {
+      const data = await requestJSON("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username: login.username.trim(), password: login.password.trim() }),
+      });
+
+      setAuthToken(data.token);
+      setAuthTokenState(data.token);
+
+      const role = data.user.role;
+      if (role !== selectedRole) {
+        await requestJSON("/auth/logout", { method: "POST" }).catch(() => {});
+        setAuthToken(null);
+        setAuthTokenState(null);
+        setCurrentUser(null);
+        showMessage(
+          selectedRole === "jobseeker"
+            ? "此帳號不是求職者帳號，請改用企業 / HR 入口登入。"
+            : "此帳號不是 HR 帳號，請改用求職者入口登入。",
+          "error"
+        );
+        return;
+      }
+
+      setCurrentUser(data.user);
+      showMessage(`歡迎回來，${data.user.display_name || data.user.username}！`, "success");
+
+      if (role === "hr") {
+        setPage("hr");
+        await loadHrJobs(true);
+      } else {
+        setResume((prev) => ({
+          ...prev,
+          full_name: data.user.display_name || data.user.username || prev.full_name,
+        }));
+        setPage("home");
+        await Promise.all([loadMyResume(true, data.user), loadJobs(true), loadFavorites(true), loadMyApplications(true)]);
+      }
+    } catch (error) {
+      console.error("登入 API 錯誤：", error);
+      showMessage(error.message || "帳號或密碼錯誤，請重試。", "error");
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+    }
   }
 
   function buildResumePayload() {
-    return {
-      full_name: resume.full_name,
-      education: resume.education,
-      skills: splitList(resume.skills),
-      certifications: splitList(resume.certifications),
-      awards: splitList(resume.awards),
-      completion_rate: completion,
-      experience: [
-        { company: "新創科技股份有限公司", title: "後端工程師", duration: "2022/07 - 2024/06" },
-        { company: "學校專題實驗室", title: "研究助理", duration: "2021/09 - 2022/06" },
-      ],
-      projects: [{ name: "X-Ray Resume", url: "https://github.com/example/xray-resume" }],
-      preferences: {
-        expected_salary: resume.expected_salary,
-        target_role: resume.target_role,
-      },
-    };
-  }
+  return {
+    full_name: currentUser?.display_name || resume.full_name,
+    gender: resume.gender || null,
+    education: resume.education,
+    experience: parseExperience(resume.experience),
+    projects: parseProjects(resume.projects),
+    skills: splitList(resume.skills),
+    certifications: splitList(resume.certifications),
+    awards: splitList(resume.awards),
+    completion_rate: completion,
+    preferences: {
+      expected_salary: resume.expected_salary,
+      target_role: resume.target_role,
+    },
+  };
+}
 
   function buildJobPayload(job = jobRequirement) {
     return {
       title: job.title,
+      company: job.company,
+      description: job.description,
       required_skills: Array.isArray(job.required_skills) ? job.required_skills : splitList(job.required_skills),
       salary_range: job.salary_range,
       min_experience: Number(job.min_experience) || 0,
     };
+  }
+
+  async function loadMyResume(silent = false, userOverride = null) {
+    if (!silent) {
+      setLoading(true);
+      setLoadingText("載入履歷中...");
+    }
+    try {
+      const data = await requestJSON("/resume/me");
+      const displayName = userOverride?.display_name || currentUser?.display_name || userOverride?.username || currentUser?.username || "";
+      if (data?.data) {
+        const r = data.data;
+        setResume({
+  full_name: r.full_name || displayName,
+  gender: r.gender || "",
+  education: r.education || "",
+  experience: formatExperience(r.experience),
+  projects: formatProjects(r.projects),
+  skills: Array.isArray(r.skills) ? r.skills.join(", ") : r.skills || "",
+  certifications: Array.isArray(r.certifications) ? r.certifications.join(", ") : r.certifications || "",
+  awards: Array.isArray(r.awards) ? r.awards.join(", ") : r.awards || "",
+  expected_salary: r.preferences?.expected_salary || "",
+  target_role: r.preferences?.target_role || "",
+});
+      } else {
+        setResume({ ...emptyResume, full_name: displayName });
+      }
+    } catch (error) {
+      console.warn("載入履歷失敗：", error.message);
+      if (!silent) showMessage("無法載入履歷：" + error.message, "warning");
+    } finally {
+      if (!silent) {
+        setLoading(false);
+        setLoadingText(null);
+      }
+    }
+  }
+
+  async function loadJobs(silent = false) {
+    if (!silent) {
+      setLoading(true);
+      setLoadingText("載入職缺中...");
+    }
+    try {
+      const data = await requestJSON("/jobs");
+      const list = Array.isArray(data) ? data : [];
+      setJobList(list);
+    } catch (error) {
+      console.warn("載入職缺失敗：", error.message);
+      setJobList([]);
+      if (!silent) showMessage("目前無法載入後端職缺，請確認 API 或登入狀態。", "warning");
+    } finally {
+      if (!silent) {
+        setLoading(false);
+        setLoadingText(null);
+      }
+    }
+  }
+
+  async function loadFavorites(silent = false) {
+    try {
+      const data = await requestJSON("/favorites");
+      setFavoriteJobIds(data?.favorite_job_ids || []);
+    } catch (error) {
+      console.warn("載入收藏失敗：", error.message);
+      if (!silent) showMessage("無法載入收藏狀態：" + error.message, "warning");
+    }
+  }
+
+  async function loadMyApplications(silent = false) {
+    if (!silent) {
+      setLoading(true);
+      setLoadingText("載入投遞紀錄中...");
+    }
+    try {
+      const data = await requestJSON("/applications/my");
+      const list = Array.isArray(data) ? data : [];
+      const mapped = list.map((item) => ({
+        id: item.id,
+        jobId: item.job_id,
+        jobTitle: item.job_postings?.title || "職缺名稱",
+        company: item.job_postings?.company || "",
+        status: statusLabel(item.status, item.hr_decision),
+        reply: item.hr_reply ? `HR 回覆：${item.hr_reply}` : "HR 尚未回覆。",
+        createdAt: item.created_at ? new Date(item.created_at).toLocaleDateString("zh-TW") : "",
+      }));
+      setApplications(mapped);
+      return mapped;
+    } catch (error) {
+      console.warn("載入投遞紀錄失敗：", error.message);
+      if (!silent) showMessage("無法載入投遞紀錄：" + error.message, "warning");
+      return [];
+    } finally {
+      if (!silent) {
+        setLoading(false);
+        setLoadingText(null);
+      }
+    }
+  }
+
+  function statusLabel(status, hrDecision) {
+    if (hrDecision === "selected") return "已錄取";
+    if (hrDecision === "rejected") return "未錄取";
+    if (status === "pending") return "已投遞，等待 HR 回覆";
+    return status || "已投遞";
+  }
+
+  async function loadHrJobs(silent = false) {
+    if (!silent) {
+      setLoading(true);
+      setLoadingText("載入 HR 職缺中...");
+    }
+    try {
+      const data = await requestJSON("/jobs/my");
+      const list = Array.isArray(data) ? data : [];
+      setJobList(list.map((job) => ({ ...job, application_count: job.application_count ?? 0 })));
+      if (list.length > 0) setSelectedHrJobId((prev) => prev || list[0].id);
+    } catch (error) {
+      console.warn("載入 HR 職缺失敗：", error.message);
+      if (!silent) showMessage("無法載入 HR 職缺：" + error.message, "warning");
+    } finally {
+      if (!silent) {
+        setLoading(false);
+        setLoadingText(null);
+      }
+    }
+  }
+
+  async function loadJobApplications(jobId) {
+    if (!jobId) return;
+    setLoading(true);
+    setLoadingText("載入候選資料中...");
+    try {
+      const data = await requestJSON(`/jobs/${jobId}/applications`);
+      const list = Array.isArray(data) ? data : [];
+      const candidates = list.map((item, index) => {
+        const resumeData = item.resumes || {};
+        const analysisData = Array.isArray(item.analysis_results) && item.analysis_results.length > 0 ? item.analysis_results[0] : null;
+        const userData = resumeData.users || {};
+
+        return {
+          id: item.id,
+          appId: item.id,
+          name: userData.display_name || resumeData.full_name || `候選 ${index + 1}`,
+          target: resumeData.preferences?.target_role || "未填寫目標職位",
+          hasAnalysis: Boolean(analysisData),
+          score: analysisData ? Number(analysisData.match_score) || 0 : null,
+          skills: Array.isArray(resumeData.skills) ? resumeData.skills : [],
+          gap: Array.isArray(analysisData?.skill_gaps) ? analysisData.skill_gaps : [],
+          prioritySkills: Array.isArray(analysisData?.priority_skills) ? analysisData.priority_skills : [],
+          appliedJobId: item.job_id,
+          status: statusLabel(item.status, item.hr_decision),
+          hrReply: item.hr_reply || "",
+          explanation:
+            analysisData?.explanation ||
+            "此候選尚未執行 AI 分析。建議 HR 先依履歷基本資料初步查看，並請求職者於求職者端完成 AI 分析後，再參考分數與技能缺口。",
+        };
+      });
+      setHrCandidates(candidates);
+      setSelectedCandidateId(candidates[0]?.id || null);
+      if (list.length === 0) showMessage("此職缺目前尚無投遞候選。", "info");
+    } catch (error) {
+      console.warn("載入候選失敗：", error.message);
+      showMessage("無法載入候選：" + error.message, "warning");
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+    }
+  }
+
+  async function openJobsPage() {
+    setLoading(true);
+    setLoadingText("同步職缺與投遞狀態中...");
+    setMessage("");
+    try {
+      await Promise.all([loadJobs(true), loadFavorites(true), loadMyApplications(true), loadJobAnalysisCache(true)]);
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+      setPage("jobs");
+    }
   }
 
   async function checkHealth() {
@@ -467,94 +879,119 @@ export default function XRayResumeJobseekerFrontend() {
     } catch (error) {
       console.error("健康檢查 API 錯誤：", error);
       setApiStatus("offline");
-      showMessage("目前無法連到後端，畫面會先使用前端預覽資料。", "warning");
+      showMessage("目前無法連到後端，請確認 FastAPI 是否已啟動。", "warning");
     }
   }
 
   async function saveResume() {
+    if (!validateResumeForSave()) return;
+
     setLoading(true);
+    setLoadingText("儲存履歷中...");
     setMessage("");
 
     try {
       await requestJSON("/resume", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildResumePayload()),
       });
 
       setApiStatus("online");
       showMessage("履歷已儲存到資料庫，現在可以進行最新履歷分析。", "success");
       setMode("view");
+      await loadMyResume(true);
     } catch (error) {
       console.error("儲存履歷 API 錯誤：", error);
       setApiStatus("offline");
-      showMessage("履歷暫時無法儲存，請確認後端與 Supabase 連線正常後再試一次。", "warning");
+      showMessage(`履歷暫時無法儲存：${error.message}`, "warning");
     } finally {
       setLoading(false);
+      setLoadingText(null);
     }
   }
 
   async function seedJobPosting(job = null) {
     setLoading(true);
+    setLoadingText("新增職缺中...");
     setMessage("");
 
+    const payload = buildJobPayload(job || jobRequirement);
+
     try {
-      await requestJSON("/dev/seed-job", {
+      const data = await requestJSON("/jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildJobPayload(job || jobRequirement)),
+        body: JSON.stringify(payload),
       });
 
       setApiStatus("online");
-      showMessage("職缺需求已送到後端測試資料庫，求職者分析會使用最新職缺。", "success");
+      const newJob = { ...data.data, application_count: 0 };
+      setJobList((prev) => {
+        const exists = prev.some((j) => j.id === newJob.id);
+        return exists ? prev : [newJob, ...prev];
+      });
+      setSelectedHrJobId(newJob.id);
+      showMessage("職缺已新增到後端資料庫，職缺列表已同步更新。", "success");
     } catch (error) {
       console.error("新增職缺 API 錯誤：", error);
       setApiStatus("offline");
-      showMessage("目前無法新增後端職缺，HR 介面會先保留前端設定資料。", "warning");
+      showMessage(`無法新增職缺：${error.message}`, "warning");
     } finally {
       setLoading(false);
+      setLoadingText(null);
     }
   }
 
   function addLocalJob() {
-    const newJob = {
-      id: `job-${Date.now()}`,
-      title: jobRequirement.title || "未命名職缺",
-      company: jobRequirement.company || "HR 新增公司",
-      required_skills: splitList(jobRequirement.required_skills),
-      salary_range: jobRequirement.salary_range,
-      min_experience: Number(jobRequirement.min_experience) || 0,
-      description: jobRequirement.description,
-      match_score: 65,
-    };
-
-    setJobList((prev) => [newJob, ...prev]);
-    setSelectedHrJobId(newJob.id);
-    showMessage("已新增到前端職缺列表。可再按「同步此職缺到後端」送到測試資料庫。", "success");
+    seedJobPosting();
   }
 
   async function runAnalysis() {
+    if (!validateResumeForSave()) return;
+
     setLoading(true);
+    setLoadingText("AI 正在分析履歷與職缺適配度...");
     setMessage("");
 
     try {
       const data = await requestJSON("/analyze");
       setApiStatus("online");
       setAnalysis(data);
+      // 同步寫入 jobAnalysisCache，確保職缺推薦頁也用 job_id 對應
+      const jid = data?.job_snapshot?.job_id;
+      if (jid) {
+        setJobAnalysisCache((prev) => ({
+          ...prev,
+          [jid]: {
+            match_score: data.match_score,
+            shap_values: data.shap_values,
+            explanation: data.scenario_simulation,
+            priority_skills: data.priority_skills || [],
+            skill_gaps: data.skill_gaps || [],
+            salary_impact: data.salary_impact,
+            analysis_id: data.analysis_id,
+          },
+        }));
+      }
       setPage("analysis");
     } catch (error) {
       console.error("分析 API 錯誤：", error);
       setApiStatus("offline");
+      if (error.message?.includes("401") || error.message?.includes("403")) {
+        showMessage("請先登入才能執行分析。", "error");
+        return;
+      }
       setAnalysis(mockAnalysis);
       setPage("analysis");
-      showMessage("目前顯示為前端預覽分析結果。請確認後端、Supabase、履歷與職缺測試資料是否正常。", "warning");
+      showMessage(`目前顯示前端預覽分析結果：${error.message}`, "warning");
     } finally {
       setLoading(false);
+      setLoadingText(null);
     }
   }
 
   async function loadAnalysisResults() {
     setLoading(true);
+    setLoadingText("載入分析紀錄中...");
     setMessage("");
 
     try {
@@ -562,137 +999,169 @@ export default function XRayResumeJobseekerFrontend() {
       const list = Array.isArray(data) ? data : [];
       setAnalysisHistory(list);
       setApiStatus("online");
-
-      if (list.length > 0) {
-        const candidates = list.slice(0, 6).map((item, index) => {
-          const score = Number(item.match_score) || 0;
-          const gaps = Array.isArray(item.skill_gaps) ? item.skill_gaps : [];
-
-          return {
-            id: item.id || `analysis-${index}`,
-            appId: null,
-            name: `候選 ${index + 1}`,
-            target: selectedHrJob?.title || "目標職缺",
-            score,
-            skills: [],
-            gap: gaps,
-            appliedJobId: selectedHrJob?.id,
-            status: "待處理",
-            hrReply: "",
-            explanation: item.explanation || "此候選的分析結果已由後端產生，可作為 HR 初篩參考。",
-          };
-        });
-
-        setHrCandidates(candidates);
-        setSelectedCandidateId(candidates[0]?.id || null);
-        showMessage("已載入後端 analysis_results，HR 候選列表已更新。", "success");
-      } else {
-        showMessage("後端目前沒有分析紀錄，HR 候選列表先顯示前端預覽資料。", "info");
-      }
+      showMessage(list.length > 0 ? `已載入 ${list.length} 筆後端分析紀錄。` : "後端目前沒有分析紀錄。", list.length > 0 ? "success" : "info");
     } catch (error) {
       console.error("分析紀錄 API 錯誤：", error);
       setApiStatus("offline");
-      setHrCandidates(initialCandidates);
-      setSelectedCandidateId(initialCandidates[0].id);
-      showMessage("目前無法載入後端分析紀錄，HR 介面先顯示前端預覽資料。", "warning");
+      showMessage("目前無法載入後端分析紀錄。", "warning");
     } finally {
       setLoading(false);
+      setLoadingText(null);
     }
   }
 
-  function toggleFavorite(jobId) {
-    setFavoriteJobIds((prev) => (prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]));
+  // 載入目前使用者所有已分析過的職缺，建立 jobId → result 的快取 map
+  async function loadJobAnalysisCache(silent = true) {
+    try {
+      const data = await requestJSON("/analysis-results");
+      const list = Array.isArray(data) ? data : [];
+      const cache = {};
+      for (const result of list) {
+        if (result.job_id) {
+          // 若同一職缺有多筆，保留最新的（API 已按 created_at desc 排序）
+          if (!cache[result.job_id]) {
+            cache[result.job_id] = result;
+          }
+        }
+      }
+      setJobAnalysisCache(cache);
+    } catch (error) {
+      if (!silent) console.warn("載入分析快取失敗：", error.message);
+    }
   }
 
-  function applyToJob(job) {
-    const exists = applications.some((item) => item.jobId === job.id);
+  // 針對特定職缺呼叫 AI 分析（POST /analyze/job/{job_id}）
+  async function analyzeJobMatch(job) {
+    if (analyzingJobId) return; // 避免同時觸發多個分析
+    setAnalyzingJobId(job.id);
+    setMessage("");
 
-    if (exists) {
-      showMessage("你已經投遞過這個職缺，可以到投遞紀錄查看 HR 回覆。", "info");
+    try {
+      const data = await requestJSON(`/analyze/job/${job.id}`, { method: "POST" });
+      setApiStatus("online");
+
+      // 將結果寫入快取
+      setJobAnalysisCache((prev) => ({
+        ...prev,
+        [job.id]: {
+          match_score: data.match_score,
+          shap_values: data.shap_values,
+          explanation: data.scenario_simulation,
+          priority_skills: data.priority_skills || [],
+          skill_gaps: data.skill_gaps || [],
+          salary_impact: data.salary_impact,
+          analysis_id: data.analysis_id,
+        },
+      }));
+
+      const cached = data.cached ? "（使用快取結果）" : "（全新分析完成）";
+      showMessage(`「${job.title}」AI 分析完成 ${cached}，適配分數：${data.match_score}`, "success");
+    } catch (error) {
+      console.error("職缺 AI 分析失敗：", error);
+      showMessage(`分析失敗：${error.message}`, "error");
+    } finally {
+      setAnalyzingJobId(null);
+    }
+  }
+
+  async function toggleFavorite(jobId) {
+    setFavoriteJobIds((prev) => (prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]));
+    try {
+      const data = await requestJSON("/favorites", {
+        method: "POST",
+        body: JSON.stringify({ job_id: jobId }),
+      });
+      if (data?.favorite_job_ids) setFavoriteJobIds(data.favorite_job_ids);
+    } catch (error) {
+      console.warn("收藏切換失敗：", error.message);
+      setFavoriteJobIds((prev) => (prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]));
+      showMessage("收藏狀態同步失敗：" + error.message, "warning");
+    }
+  }
+
+  async function applyToJob(job) {
+    setLoading(true);
+    setLoadingText("確認投遞狀態中...");
+    try {
+      const latestApplications = await loadMyApplications(true);
+      const exists = latestApplications.some((item) => item.jobId === job.id);
+
+      if (exists) {
+        showMessage("你已經投遞過這個職缺，可以到投遞紀錄查看 HR 回覆。", "info");
+        setPage("applications");
+        return;
+      }
+
+      setLoadingText("投遞履歷中...");
+      await requestJSON("/applications", {
+        method: "POST",
+        body: JSON.stringify({ job_id: job.id }),
+      });
+      setApiStatus("online");
+      showMessage("已成功投遞！你可以到投遞紀錄查看狀態，HR 也會看到這筆投遞。", "success");
+      await loadMyApplications(true);
       setPage("applications");
+    } catch (error) {
+      console.error("投遞 API 錯誤：", error);
+      setApiStatus("offline");
+      if (error.message?.includes("409") || error.message?.includes("已經投遞")) {
+        showMessage("你已經投遞過這個職缺。", "info");
+        await loadMyApplications(true);
+        setPage("applications");
+      } else {
+        showMessage(`投遞失敗：${error.message}`, "error");
+      }
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+    }
+  }
+
+  async function updateCandidateDecision(candidate, decision) {
+    if (!candidate || !candidate.appId) {
+      showMessage("此候選沒有對應的投遞紀錄 ID，無法呼叫後端。", "warning");
       return;
     }
 
-    const appId = `app-${Date.now()}`;
-    const candidateId = `candidate-${Date.now()}`;
-    const resumeSkills = splitList(resume.skills);
-    const gap = job.required_skills.filter((skill) => !resumeSkills.includes(skill));
-
-    const newApplication = {
-      id: appId,
-      candidateId,
-      jobId: job.id,
-      jobTitle: job.title,
-      company: job.company,
-      status: "已投遞，等待 HR 回覆",
-      reply: "HR 尚未回覆。之後若後端新增 HR 回覆 API，可直接覆蓋這裡的前端狀態。",
-      createdAt: new Date().toLocaleDateString("zh-TW"),
-    };
-
-    const newCandidate = {
-      id: candidateId,
-      appId,
-      name: resume.full_name || "求職者",
-      target: resume.target_role,
-      score: job.match_score,
-      skills: resumeSkills,
-      gap,
-      appliedJobId: job.id,
-      status: "待處理",
-      hrReply: "",
-      explanation: `此求職者已投遞「${job.title}」，目前匹配度約 ${job.match_score} 分，可由 HR 進一步檢視技能缺口與履歷摘要。`,
-    };
-
-    setApplications((prev) => [newApplication, ...prev]);
-    setHrCandidates((prev) => [newCandidate, ...prev]);
-    showMessage("已送出投遞。你可以到投遞紀錄查看狀態，HR 端也會看到這筆前端投遞資料。", "success");
-    setPage("applications");
-  }
-
-  function updateCandidateDecision(candidate, decision) {
-    if (!candidate) return;
-
-    const status = decision === "selected" ? "已選擇" : "已拒絕";
+    setLoading(true);
+    setLoadingText("更新 HR 決定中...");
     const defaultReply =
       decision === "selected"
-        ? "HR 回覆：您的履歷與此職缺需求相符，後續將進一步聯繫您。"
-        : "HR 回覆：感謝您的投遞，目前此職缺與您的背景仍有部分落差，建議補強相關技能後再投遞。";
+        ? "您的履歷與此職缺需求相符，後續將進一步聯繫您。"
+        : "感謝您的投遞，目前此職缺與您的背景仍有部分落差，建議補強相關技能後再投遞。";
 
-    const reply = hrReplyDraft.trim() ? `HR 回覆：${hrReplyDraft.trim()}` : defaultReply;
+    const hr_reply = hrReplyDraft.trim() || defaultReply;
 
-    setHrCandidates((prev) =>
-      prev.map((item) =>
-        item.id === candidate.id
-          ? {
-              ...item,
-              status,
-              hrReply: reply,
-            }
-          : item
-      )
-    );
+    try {
+      await requestJSON(`/applications/${candidate.appId}/decision`, {
+        method: "PUT",
+        body: JSON.stringify({ decision, hr_reply }),
+      });
 
-    if (candidate.appId) {
-      setApplications((prev) =>
-        prev.map((item) =>
-          item.id === candidate.appId
-            ? {
-                ...item,
-                status,
-                reply,
-              }
-            : item
-        )
+      const statusText = decision === "selected" ? "已錄取" : "未錄取";
+
+      setHrCandidates((prev) =>
+        prev.map((item) => (item.id === candidate.id ? { ...item, status: statusText, hrReply: hr_reply } : item))
       );
-    }
 
-    setHrReplyDraft("");
-    showMessage(`已將 ${candidate.name} 標記為「${status}」。若此候選來自求職者投遞，求職者端會看到此回覆。`, "success");
+      setHrReplyDraft("");
+      setApiStatus("online");
+      showMessage(`已將 ${candidate.name} 標記為「${statusText}」，求職者端投遞紀錄將同步更新。`, "success");
+    } catch (error) {
+      console.error("HR 決定 API 錯誤：", error);
+      showMessage(`更新失敗：${error.message}`, "error");
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+    }
   }
+
+  const busyOverlay = <LoadingOverlay show={loading && page !== "login"} title={loadingText || "處理中"} />;
 
   if (page === "landing") {
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-7xl">
           <div className="mb-5 flex justify-end">
             <Button variant="secondary" className="px-4 py-2 text-sm" onClick={checkHealth}>
@@ -740,10 +1209,7 @@ export default function XRayResumeJobseekerFrontend() {
 
               <div className="grid gap-3 sm:grid-cols-3">
                 {["求職者履歷健檢", "企業 HR 初篩輔助", "推薦依據透明"].map((item) => (
-                  <div
-                    key={item}
-                    className="flex min-h-[50px] items-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
-                  >
+                  <div key={item} className="flex min-h-[50px] items-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm">
                     <CheckCircle2 className="shrink-0 text-emerald-500" size={17} /> {item}
                   </div>
                 ))}
@@ -772,12 +1238,8 @@ export default function XRayResumeJobseekerFrontend() {
                 <div className="grid flex-1 gap-3 sm:grid-cols-2">
                   {featureList.map((feature) => {
                     const Icon = feature.icon;
-
                     return (
-                      <div
-                        key={feature.title}
-                        className="rounded-3xl border border-slate-100 bg-white/75 p-3.5"
-                      >
+                      <div key={feature.title} className="rounded-3xl border border-slate-100 bg-white/75 p-3.5">
                         <div className="mb-3 grid h-10 w-10 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">
                           <Icon size={20} />
                         </div>
@@ -817,9 +1279,7 @@ export default function XRayResumeJobseekerFrontend() {
                 {selectedRole === "hr" ? <Users size={28} /> : <User size={28} />}
               </div>
               <h1 className="text-3xl font-black">{roleLabel}登入</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                目前先以前端模擬帳密登入，之後後端有會員 / 權限 API 時可替換。
-              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">請輸入帳號密碼，登入後資料會與後端同步。</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
@@ -827,7 +1287,7 @@ export default function XRayResumeJobseekerFrontend() {
                 label="使用者名稱"
                 value={login.username}
                 onChange={(v) => setLogin((prev) => ({ ...prev, username: v }))}
-                placeholder={selectedRole === "hr" ? "例如：hr_admin" : "例如：jobseeker01"}
+                placeholder={selectedRole === "hr" ? "例如：hr_admin" : "例如：jobseeker1"}
               />
               <Field
                 label="密碼"
@@ -837,10 +1297,11 @@ export default function XRayResumeJobseekerFrontend() {
                 placeholder="請輸入密碼"
               />
 
-              <Button className="w-full py-3 text-base" type="submit">
-                <Lock size={16} /> 登入
+              <Button className="w-full py-3 text-base" type="submit" disabled={loading}>
+                <Lock size={16} /> {loading ? "登入中..." : "登入"}
               </Button>
             </form>
+
 
             <div className="mt-5 flex justify-center gap-3 text-sm">
               <button
@@ -848,6 +1309,80 @@ export default function XRayResumeJobseekerFrontend() {
                 onClick={() => setSelectedRole(selectedRole === "hr" ? "jobseeker" : "hr")}
               >
                 切換成{selectedRole === "hr" ? "求職者" : "企業 / HR"}登入
+              </button>
+              <span className="text-slate-300">｜</span>
+              <button
+                className="cursor-pointer font-semibold text-indigo-700 transition hover:text-indigo-900 hover:underline"
+                onClick={goRegister}
+              >
+                註冊帳號
+              </button>
+            </div>
+
+            {message && (
+              <div className="mt-5">
+                <StatusNote type={messageType}>{message}</StatusNote>
+              </div>
+            )}
+          </Card>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "register") {
+    const roleLabel = selectedRole === "hr" ? "企業 / HR" : "求職者";
+
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-xl">
+          <Button variant="ghost" onClick={() => setPage("login")} className="mb-5">
+            <ArrowLeft size={16} /> 返回登入
+          </Button>
+
+          <Card className="p-6 md:p-8">
+            <div className="mb-7 text-center">
+              <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-slate-900 text-white shadow-lg shadow-indigo-100">
+                {selectedRole === "hr" ? <Users size={28} /> : <User size={28} />}
+              </div>
+              <h1 className="text-3xl font-black">{roleLabel}註冊</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                填寫以下資料建立帳號，密碼會以 SHA-256 加密儲存。
+              </p>
+            </div>
+
+            <form onSubmit={handleDemoRegister} className="space-y-5">
+              <Field
+                label="姓名"
+                value={registerForm.display_name}
+                onChange={(v) => setRegisterForm((prev) => ({ ...prev, display_name: v }))}
+                placeholder="請輸入姓名"
+              />
+              <Field
+                label="使用者名稱"
+                value={registerForm.username}
+                onChange={(v) => setRegisterForm((prev) => ({ ...prev, username: v }))}
+                placeholder={selectedRole === "hr" ? "例如：hr_account" : "例如：jobseeker3"}
+              />
+              <Field
+                label="密碼"
+                type="password"
+                value={registerForm.password}
+                onChange={(v) => setRegisterForm((prev) => ({ ...prev, password: v }))}
+                placeholder="請輸入密碼"
+              />
+
+              <Button className="w-full py-3 text-base" type="submit" disabled={loading}>
+                <Lock size={16} /> {loading ? "建立中..." : "建立帳號"}
+              </Button>
+            </form>
+
+            <div className="mt-5 flex justify-center gap-3 text-sm">
+              <button
+                className="cursor-pointer font-semibold text-indigo-700 transition hover:text-indigo-900 hover:underline"
+                onClick={() => setPage("login")}
+              >
+                已有帳號，返回登入
               </button>
             </div>
 
@@ -865,13 +1400,16 @@ export default function XRayResumeJobseekerFrontend() {
   if (page === "home") {
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-7xl">
           <header className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-start">
             <div>
               <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm">
                 <User size={16} /> 求職者首頁
               </div>
-              <h1 className="text-4xl font-black tracking-tight text-slate-950">歡迎回來，{resume.full_name}</h1>
+              <h1 className="text-4xl font-black tracking-tight text-slate-950">
+                歡迎回來，{currentUser?.display_name || currentUser?.username || resume.full_name}
+              </h1>
               <p className="mt-2 text-slate-600">整理履歷、分析職缺適配度，並取得可以實際行動的求職建議。</p>
             </div>
             <TopLogout onLogout={logout} />
@@ -884,9 +1422,7 @@ export default function XRayResumeJobseekerFrontend() {
                   <h2 className="flex items-center gap-2 text-2xl font-black">
                     <FileText className="text-indigo-600" /> 我的履歷概況
                   </h2>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                    確認基本資料與技能內容後，即可產生履歷與職缺的可解釋分析。
-                  </p>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">確認基本資料與技能內容後，即可產生履歷與職缺的可解釋分析。</p>
                 </div>
 
                 <div className="rounded-3xl bg-gradient-to-br from-indigo-50 to-sky-50 px-5 py-4 text-center">
@@ -898,26 +1434,30 @@ export default function XRayResumeJobseekerFrontend() {
               <div className="mt-7 grid gap-4 md:grid-cols-3">
                 <div className="rounded-3xl bg-white/75 p-5 shadow-sm">
                   <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Education</div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{resume.education}</p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{resume.education || "尚未填寫"}</p>
                 </div>
                 <div className="rounded-3xl bg-white/75 p-5 shadow-sm">
                   <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Target</div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{resume.target_role}</p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{resume.target_role || "尚未填寫"}</p>
                 </div>
                 <div className="rounded-3xl bg-white/75 p-5 shadow-sm">
                   <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Salary</div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{resume.expected_salary}</p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{resume.expected_salary || "尚未填寫"}</p>
                 </div>
               </div>
 
               <div className="mt-5 rounded-3xl bg-slate-900 p-5 text-white shadow-lg shadow-slate-200">
                 <div className="text-sm font-semibold text-white/75">核心技能</div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {splitList(resume.skills).map((skill) => (
-                    <span key={skill} className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur">
-                      {skill}
-                    </span>
-                  ))}
+                  {splitList(resume.skills).length > 0 ? (
+                    splitList(resume.skills).map((skill) => (
+                      <span key={skill} className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold backdrop-blur">
+                        {skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-white/70">尚未填寫技能</span>
+                  )}
                 </div>
               </div>
 
@@ -966,10 +1506,17 @@ export default function XRayResumeJobseekerFrontend() {
                   <Briefcase className="text-violet-600" /> 其他功能
                 </h2>
                 <div className="mt-5 space-y-3">
-                  <Button variant="secondary" className="w-full justify-start" onClick={() => setPage("jobs")}>
+                  <Button variant="secondary" className="w-full justify-start" onClick={openJobsPage}>
                     職缺推薦
                   </Button>
-                  <Button variant="secondary" className="w-full justify-start" onClick={() => setPage("applications")}>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-start"
+                    onClick={async () => {
+                      await loadMyApplications();
+                      setPage("applications");
+                    }}
+                  >
                     投遞紀錄 / HR 回覆
                   </Button>
                   <Button variant="secondary" className="w-full justify-start" onClick={() => setPage("advisor")}>
@@ -995,6 +1542,7 @@ export default function XRayResumeJobseekerFrontend() {
 
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-5xl">
           <TopLogout onLogout={logout} />
 
@@ -1006,21 +1554,59 @@ export default function XRayResumeJobseekerFrontend() {
             <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
                 <h1 className="text-3xl font-black">{readOnly ? "檢視履歷" : "修改履歷"}</h1>
-                <p className="mt-2 text-sm text-slate-500">補齊學歷、技能、證照與職涯目標，能讓後續分析更完整。</p>
+                <p className="mt-2 text-sm text-slate-500">補齊學歷、技能與職涯目標，能讓後續分析更完整。</p>
               </div>
               <Button variant="secondary" onClick={() => setMode(readOnly ? "edit" : "view")}>
                 {readOnly ? "切換成修改" : "切換成檢視"}
               </Button>
             </div>
 
+            <div className="mb-5 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+              <span className="text-rose-500">*</span> 為必填欄位；姓名依登入帳號帶入，避免投遞履歷時與帳號資料不一致。
+            </div>
+
             <div className="grid gap-5 md:grid-cols-2">
-              <Field label="姓名" value={resume.full_name} onChange={(v) => setResumeField("full_name", v)} disabled={readOnly} />
-              <Field label="目標職位" value={resume.target_role} onChange={(v) => setResumeField("target_role", v)} disabled={readOnly} />
-              <Field label="學歷" value={resume.education} onChange={(v) => setResumeField("education", v)} multiline disabled={readOnly} />
-              <Field label="技能 (逗號分隔)" value={resume.skills} onChange={(v) => setResumeField("skills", v)} multiline disabled={readOnly} />
-              <Field label="證照" value={resume.certifications} onChange={(v) => setResumeField("certifications", v)} multiline disabled={readOnly} />
-              <Field label="獎項 / 其他加分項" value={resume.awards} onChange={(v) => setResumeField("awards", v)} multiline disabled={readOnly} />
-              <Field label="期望薪資" value={resume.expected_salary} onChange={(v) => setResumeField("expected_salary", v)} disabled={readOnly} />
+              <Field label="姓名" value={resume.full_name} onChange={(v) => setResumeField("full_name", v)} disabled helpText="姓名由帳號資料帶入，不開放在履歷頁修改。" />
+              <SelectField
+                label="性別"
+                value={resume.gender}
+                onChange={(v) => setResumeField("gender", v)}
+                options={[
+                  { value: "male", label: "男" },
+                  { value: "female", label: "女" },
+                  { value: "undisclosed", label: "不公開" },
+                ]}
+                disabled={readOnly}
+                required
+              />
+              <Field label="目標職位" value={resume.target_role} onChange={(v) => setResumeField("target_role", v)} disabled={readOnly} required />
+
+              <Field label="學歷" value={resume.education} onChange={(v) => setResumeField("education", v)} multiline disabled={readOnly} required />
+
+              <Field
+                label="工作經驗"
+                value={resume.experience}
+                onChange={(v) => setResumeField("experience", v)}
+                multiline
+                disabled={readOnly}
+                required
+                helpText="每行一筆，建議格式：公司｜職稱｜期間｜說明"
+              />
+
+              <Field
+                label="專案作品"
+                value={resume.projects}
+                onChange={(v) => setResumeField("projects", v)}
+                multiline
+                disabled={readOnly}
+                required
+                helpText="每行一筆，建議格式：專案名稱｜專案說明｜使用技術"
+              />
+
+              <Field label="技能 (,分隔)" value={resume.skills} onChange={(v) => setResumeField("skills", v)} multiline disabled={readOnly} required />
+              <Field label="證照" value={resume.certifications} onChange={(v) => setResumeField("certifications", v)} multiline disabled={readOnly} helpText="選填，可填 AWS、Google、語言檢定等證照。" />
+              <Field label="獎項 / 其他加分項" value={resume.awards} onChange={(v) => setResumeField("awards", v)} multiline disabled={readOnly} helpText="選填，可填競賽、社團、志工、作品亮點。" />
+              <Field label="期望薪資" value={resume.expected_salary} onChange={(v) => setResumeField("expected_salary", v)} disabled={readOnly} required />
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -1054,6 +1640,7 @@ export default function XRayResumeJobseekerFrontend() {
 
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-7xl">
           <TopLogout onLogout={logout} />
 
@@ -1096,12 +1683,9 @@ export default function XRayResumeJobseekerFrontend() {
               <h2 className="flex items-center gap-2 text-2xl font-black">
                 <BarChart3 className="text-indigo-600" /> 權重解釋
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500">後端目前已回傳 shap_values，可先用前端長條圖呈現推薦依據。</p>
-
               <div className="mt-5 grid gap-4 md:grid-cols-4">
                 {shapItems.map((item) => {
                   const percent = Math.round(Number(item.value) * 100);
-
                   return (
                     <div key={item.label} className="rounded-3xl bg-white/75 p-5 shadow-sm">
                       <div className="text-sm font-bold text-slate-700">{item.label}</div>
@@ -1143,7 +1727,7 @@ export default function XRayResumeJobseekerFrontend() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={() => setPage("jobs")}>
+            <Button variant="secondary" onClick={openJobsPage}>
               查看可投遞職缺
             </Button>
             <Button variant="secondary" onClick={() => setPage("scenario")}>
@@ -1159,6 +1743,7 @@ export default function XRayResumeJobseekerFrontend() {
   if (page === "jobs") {
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-7xl">
           <TopLogout onLogout={logout} />
 
@@ -1173,51 +1758,105 @@ export default function XRayResumeJobseekerFrontend() {
                   <Briefcase className="text-indigo-600" /> 職缺推薦
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  可先收藏心儀職缺，再確認投遞。此階段投遞先存在前端，之後可接後端投遞 API。
+                  可收藏心儀職缺，確認後投遞。
                 </p>
               </div>
-              <Button variant="secondary" onClick={() => setPage("applications")}>
-                查看投遞紀錄
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="secondary" onClick={openJobsPage} disabled={loading}>
+                  <RefreshCw size={16} /> 重新整理
+                </Button>
+                <Button variant="secondary" onClick={() => setPage("applications")}>
+                  查看投遞紀錄
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3">
-              {jobList.map((job) => {
-                const isFavorite = favoriteJobIds.includes(job.id);
-                const hasApplied = applications.some((item) => item.jobId === job.id);
-                const level = getScoreLevel(job.match_score);
+              {jobList.length === 0 ? (
+                <div className="lg:col-span-3">
+                  <StatusNote type="info">目前尚無後端職缺資料，請確認 HR 是否已新增職缺，或重新整理職缺列表。</StatusNote>
+                </div>
+              ) : (
+                jobList.map((job) => {
+                  const isFavorite = favoriteJobIds.includes(job.id);
+                  const hasApplied = applications.some((item) => item.jobId === job.id);
 
-                return (
-                  <div
-                    key={job.id}
-                    className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg"
-                  >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
-                      <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{job.match_score}</span>
+                  // 全部改用 job_id 精確對應，不再依賴名稱字串
+                  const cachedResult = jobAnalysisCache[job.id];
+                  const jobMatchScore = cachedResult?.match_score ?? null;
+                  const hasAnalysis = jobMatchScore !== null;
+                  const level = hasAnalysis ? getScoreLevel(jobMatchScore) : null;
+                  const isAnalyzingThis = analyzingJobId === job.id;
+
+                  return (
+                    <div key={job.id} className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        {hasAnalysis ? (
+                          <>
+                            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
+                            <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{jobMatchScore}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">開放投遞</span>
+                            <span className="rounded-2xl bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">尚未分析</span>
+                          </>
+                        )}
+                      </div>
+                      <h2 className="text-xl font-black text-slate-900">{job.title}</h2>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">{job.company}</p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{job.description}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {(job.required_skills || []).map((skill) => (
+                          <span key={skill} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">
+                        {job.salary_range || "薪資未提供"} · 最低年資 {job.min_experience ?? 0} 年
+                      </div>
+
+                      {/* 顯示分析摘要（若已分析） */}
+                      {hasAnalysis && cachedResult?.explanation && (
+                        <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">
+                          <div className="mb-1 text-xs font-bold text-indigo-600">AI 分析摘要</div>
+                          <p className="line-clamp-3 text-xs leading-5 text-slate-700">{cachedResult.explanation}</p>
+                          {(cachedResult.skill_gaps || []).length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              <span className="text-xs font-semibold text-amber-700">缺口：</span>
+                              {cachedResult.skill_gaps.slice(0, 4).map((s) => (
+                                <span key={s} className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <Button variant={isFavorite ? "soft" : "secondary"} onClick={() => toggleFavorite(job.id)}>
+                          {isFavorite ? "已加入心儀" : "加入心儀"}
+                        </Button>
+
+                        {/* AI 分析按鈕：未分析時顯示；已分析時顯示「重新分析」 */}
+                        <Button
+                          variant={hasAnalysis ? "ghost" : "soft"}
+                          onClick={() => analyzeJobMatch(job)}
+                          disabled={isAnalyzingThis || Boolean(analyzingJobId)}
+                          className={hasAnalysis ? "text-xs" : ""}
+                        >
+                          <BarChart3 size={14} />
+                          {isAnalyzingThis ? "AI 分析中..." : hasAnalysis ? "重新分析" : "AI 分析此職缺"}
+                        </Button>
+
+                        <Button onClick={() => applyToJob(job)} disabled={hasApplied || loading}>
+                          <Send size={16} /> {hasApplied ? "已投遞" : "確認投遞"}
+                        </Button>
+                      </div>
                     </div>
-                    <h2 className="text-xl font-black text-slate-900">{job.title}</h2>
-                    <p className="mt-1 text-sm font-semibold text-slate-500">{job.company}</p>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">{job.description}</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {job.required_skills.map((skill) => (
-                        <span key={skill} className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">{job.salary_range}</div>
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      <Button variant={isFavorite ? "soft" : "secondary"} onClick={() => toggleFavorite(job.id)}>
-                        {isFavorite ? "已加入心儀" : "加入心儀"}
-                      </Button>
-                      <Button onClick={() => applyToJob(job)} disabled={hasApplied}>
-                        <Send size={16} /> {hasApplied ? "已投遞" : "確認投遞"}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </Card>
 
@@ -1234,6 +1873,7 @@ export default function XRayResumeJobseekerFrontend() {
   if (page === "applications") {
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-6xl">
           <TopLogout onLogout={logout} />
 
@@ -1249,9 +1889,14 @@ export default function XRayResumeJobseekerFrontend() {
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-slate-500">求職者可以查看已投遞職缺、目前狀態，以及 HR 的回覆內容。</p>
               </div>
-              <Button variant="secondary" onClick={() => setPage("jobs")}>
-                繼續查看職缺
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="secondary" onClick={() => loadMyApplications()} disabled={loading}>
+                  <RefreshCw size={16} /> {loading ? "載入中..." : "重新整理"}
+                </Button>
+                <Button variant="secondary" onClick={openJobsPage}>
+                  繼續查看職缺
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -1267,9 +1912,7 @@ export default function XRayResumeJobseekerFrontend() {
                           {item.company} · {item.createdAt}
                         </p>
                       </div>
-                      <span className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
-                        {item.status}
-                      </span>
+                      <span className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{item.status}</span>
                     </div>
                     <p className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">{item.reply}</p>
                   </div>
@@ -1285,6 +1928,7 @@ export default function XRayResumeJobseekerFrontend() {
   if (page === "hr") {
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-7xl">
           <header className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-start">
             <div>
@@ -1299,7 +1943,7 @@ export default function XRayResumeJobseekerFrontend() {
 
           <div className="grid gap-5 md:grid-cols-3">
             <MiniMetric label="職缺數" value={jobList.length} icon={Briefcase} />
-            <MiniMetric label="目前職缺候選" value={candidateStats.total} icon={Users} />
+            <MiniMetric label="總投遞數" value={candidateStats.total} icon={Users} />
             <MiniMetric label="中高適配" value={candidateStats.high + candidateStats.medium} icon={BarChart3} />
           </div>
 
@@ -1308,7 +1952,7 @@ export default function XRayResumeJobseekerFrontend() {
               <h2 className="flex items-center gap-2 text-2xl font-black">
                 <Briefcase className="text-indigo-600" /> 新增職缺
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500">可先新增到前端職缺列表，也可同步到後端測試資料庫。</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">填寫職缺資料後，直接同步新增到後端資料庫。</p>
 
               <div className="mt-6 grid gap-5">
                 <Field label="公司名稱" value={jobRequirement.company} onChange={(v) => setJobField("company", v)} />
@@ -1322,11 +1966,11 @@ export default function XRayResumeJobseekerFrontend() {
               </div>
 
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button onClick={addLocalJob}>
-                  <Save size={16} /> 新增到職缺列表
+                <Button onClick={addLocalJob} disabled={loading}>
+                  <Save size={16} /> {loading ? "新增中..." : "新增職缺到後端"}
                 </Button>
-                <Button variant="secondary" onClick={() => seedJobPosting()} disabled={loading}>
-                  {loading ? "同步中..." : "同步此職缺到後端"}
+                <Button variant="secondary" onClick={() => loadHrJobs()} disabled={loading}>
+                  <RefreshCw size={16} /> 重新載入職缺列表
                 </Button>
               </div>
             </Card>
@@ -1338,31 +1982,36 @@ export default function XRayResumeJobseekerFrontend() {
               <p className="mt-2 text-sm leading-6 text-slate-500">點選職缺後，會進入該職缺頁面查看投遞候選。</p>
 
               <div className="mt-5 space-y-3">
-                {jobList.map((job) => (
-                  <button
-                    key={job.id}
-                    onClick={() => {
-                      setSelectedHrJobId(job.id);
-                      const firstCandidate = hrCandidates.find((candidate) => candidate.appliedJobId === job.id);
-                      setSelectedCandidateId(firstCandidate?.id || null);
-                      setHrReplyDraft("");
-                      setPage("hrJobDetail");
-                    }}
-                    className="w-full cursor-pointer rounded-3xl border border-slate-100 bg-white/75 p-4 text-left transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/60 hover:shadow-lg"
-                  >
-                    <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-                      <div>
-                        <div className="text-lg font-black text-slate-900">{job.title}</div>
-                        <div className="mt-1 text-sm text-slate-500">
-                          {job.company} · {job.salary_range}
+                {jobList.length === 0 ? (
+                  <StatusNote type="info">目前尚無職缺，請先新增一個職缺。</StatusNote>
+                ) : (
+                  jobList.map((job) => (
+                    <button
+                      key={job.id}
+                      onClick={() => {
+                        setSelectedHrJobId(job.id);
+                        setSelectedCandidateId(null);
+                        setHrCandidates([]);
+                        setHrReplyDraft("");
+                        setPage("hrJobDetail");
+                        loadJobApplications(job.id);
+                      }}
+                      className="w-full cursor-pointer rounded-3xl border border-slate-100 bg-white/75 p-4 text-left transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/60 hover:shadow-lg"
+                    >
+                      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                        <div>
+                          <div className="text-lg font-black text-slate-900">{job.title}</div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {job.company} · {job.salary_range}
+                          </div>
                         </div>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                          {job.application_count ?? 0} 位投遞
+                        </span>
                       </div>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
-                        {hrCandidates.filter((candidate) => candidate.appliedJobId === job.id).length} 位投遞
-                      </span>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
               </div>
             </Card>
           </div>
@@ -1380,6 +2029,7 @@ export default function XRayResumeJobseekerFrontend() {
   if (page === "hrJobDetail") {
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-7xl">
           <TopLogout onLogout={logout} />
 
@@ -1415,8 +2065,8 @@ export default function XRayResumeJobseekerFrontend() {
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              <Button variant="secondary" onClick={loadAnalysisResults} disabled={loading}>
-                <RefreshCw size={16} /> 載入後端分析紀錄
+              <Button variant="secondary" onClick={() => loadJobApplications(selectedHrJob?.id)} disabled={loading || !selectedHrJob}>
+                <RefreshCw size={16} /> {loading ? "載入中..." : "重新載入候選"}
               </Button>
               <Button variant="secondary" onClick={() => setPage("hr")}>
                 管理其他職缺
@@ -1436,7 +2086,7 @@ export default function XRayResumeJobseekerFrontend() {
                   <StatusNote>目前此職缺尚無投遞候選。</StatusNote>
                 ) : (
                   candidatesForSelectedJob.map((candidate) => {
-                    const level = getScoreLevel(candidate.score);
+                    const level = candidate.hasAnalysis ? getScoreLevel(candidate.score) : null;
                     const active = selectedCandidate?.id === candidate.id;
 
                     return (
@@ -1444,7 +2094,7 @@ export default function XRayResumeJobseekerFrontend() {
                         key={candidate.id}
                         onClick={() => {
                           setSelectedCandidateId(candidate.id);
-                          setHrReplyDraft(candidate.hrReply?.replace(/^HR 回覆：/, "") || "");
+                          setHrReplyDraft(candidate.hrReply || "");
                         }}
                         className={`w-full cursor-pointer rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                           active ? "border-indigo-200 bg-indigo-50/80 shadow-lg shadow-indigo-100" : "border-slate-100 bg-white/75 hover:bg-white"
@@ -1456,14 +2106,18 @@ export default function XRayResumeJobseekerFrontend() {
                             <div className="mt-1 text-sm text-slate-500">{candidate.target}</div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
-                            <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{candidate.score}</span>
+                            {candidate.hasAnalysis ? (
+                              <>
+                                <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
+                                <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{candidate.score}</span>
+                              </>
+                            ) : (
+                              <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">尚未分析</span>
+                            )}
                           </div>
                         </div>
 
-                        <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
-                          {candidate.status}
-                        </div>
+                        <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">{candidate.status}</div>
                       </button>
                     );
                   })
@@ -1477,7 +2131,13 @@ export default function XRayResumeJobseekerFrontend() {
                       <h3 className="text-2xl font-black">{selectedCandidate.name} 的分析摘要</h3>
                       <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">{selectedCandidate.explanation}</p>
                     </div>
-                    <ScoreRing score={selectedCandidate.score} />
+                    {selectedCandidate.hasAnalysis ? (
+                      <ScoreRing score={selectedCandidate.score} />
+                    ) : (
+                      <div className="rounded-3xl border border-amber-100 bg-amber-50 px-5 py-4 text-center text-amber-700">
+                        <div className="text-2xl font-black">尚未分析</div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6 grid gap-5 md:grid-cols-2">
@@ -1491,7 +2151,7 @@ export default function XRayResumeJobseekerFrontend() {
                             </span>
                           ))
                         ) : (
-                          <span className="text-sm text-slate-500">後端分析紀錄目前未提供履歷技能快照。</span>
+                          <span className="text-sm text-slate-500">後端目前未提供履歷技能快照。</span>
                         )}
                       </div>
                     </div>
@@ -1499,11 +2159,15 @@ export default function XRayResumeJobseekerFrontend() {
                     <div className="rounded-3xl bg-slate-50 p-5">
                       <h4 className="font-black text-slate-900">缺口 / 可追問項目</h4>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {(selectedCandidate.gap || []).map((skill) => (
-                          <span key={skill} className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-                            {skill}
-                          </span>
-                        ))}
+                        {(selectedCandidate.gap || []).length > 0 ? (
+                          selectedCandidate.gap.map((skill) => (
+                            <span key={skill} className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                              {skill}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-slate-500">尚未有 AI 技能缺口資料。</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1519,11 +2183,11 @@ export default function XRayResumeJobseekerFrontend() {
                       placeholder="例如：您的後端基礎符合需求，建議補充雲端部署作品後安排下一步。"
                     />
                     <div className="mt-4 flex flex-wrap gap-3">
-                      <Button variant="success" onClick={() => updateCandidateDecision(selectedCandidate, "selected")}>
-                        <CheckCircle2 size={16} /> 選擇
+                      <Button variant="success" onClick={() => updateCandidateDecision(selectedCandidate, "selected")} disabled={loading}>
+                        <CheckCircle2 size={16} /> {loading ? "更新中..." : "選擇"}
                       </Button>
-                      <Button variant="danger" onClick={() => updateCandidateDecision(selectedCandidate, "rejected")}>
-                        拒絕
+                      <Button variant="danger" onClick={() => updateCandidateDecision(selectedCandidate, "rejected")} disabled={loading}>
+                        {loading ? "更新中..." : "拒絕"}
                       </Button>
                     </div>
                   </div>
@@ -1572,6 +2236,7 @@ export default function XRayResumeJobseekerFrontend() {
 
     return (
       <AppShell>
+        {busyOverlay}
         <div className="mx-auto max-w-6xl">
           <TopLogout onLogout={logout} />
 
