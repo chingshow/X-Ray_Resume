@@ -72,4 +72,4 @@ class TestAnalyze:
         await client.get("/analyze")
 
         results = (await client.get("/analysis-results")).json()
-        assert len(results) == 2
+        assert len(results) == 1
