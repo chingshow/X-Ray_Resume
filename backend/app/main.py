@@ -358,6 +358,7 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
                             "skills": resume.get("skills"),
                         },
                         "job_snapshot": {
+                            "job_id": job.get("id"),
                             "title": job.get("title"),
                             "required_skills": job.get("required_skills"),
                         },
@@ -444,6 +445,7 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
             "skills": resume.get("skills"),
         },
         "job_snapshot": {
+            "job_id": job.get("id"),
             "title": job.get("title"),
             "required_skills": job.get("required_skills"),
         },
@@ -1123,6 +1125,7 @@ def analyze_resume_for_job(
                             "skills": resume.get("skills"),
                         },
                         "job_snapshot": {
+                            "job_id": job.get("id"),
                             "title": job.get("title"),
                             "required_skills": job.get("required_skills"),
                         },
@@ -1202,6 +1205,7 @@ def analyze_resume_for_job(
             "skills": resume.get("skills"),
         },
         "job_snapshot": {
+            "job_id": job.get("id"),
             "title": job.get("title"),
             "required_skills": job.get("required_skills"),
         },

@@ -846,6 +846,22 @@ export default function XRayResumeJobseekerFrontend() {
       const data = await requestJSON("/analyze");
       setApiStatus("online");
       setAnalysis(data);
+      // 同步寫入 jobAnalysisCache，確保職缺推薦頁也用 job_id 對應
+      const jid = data?.job_snapshot?.job_id;
+      if (jid) {
+        setJobAnalysisCache((prev) => ({
+          ...prev,
+          [jid]: {
+            match_score: data.match_score,
+            shap_values: data.shap_values,
+            explanation: data.scenario_simulation,
+            priority_skills: data.priority_skills || [],
+            skill_gaps: data.skill_gaps || [],
+            salary_impact: data.salary_impact,
+            analysis_id: data.analysis_id,
+          },
+        }));
+      }
       setPage("analysis");
     } catch (error) {
       console.error("分析 API 錯誤：", error);
@@ -1621,10 +1637,9 @@ export default function XRayResumeJobseekerFrontend() {
                   const isFavorite = favoriteJobIds.includes(job.id);
                   const hasApplied = applications.some((item) => item.jobId === job.id);
 
-                  // 優先從 per-job 快取取分析結果；fallback 到舊的全域 analysis（相同職缺標題）
+                  // 全部改用 job_id 精確對應，不再依賴名稱字串
                   const cachedResult = jobAnalysisCache[job.id];
-                  const isAnalyzedByGlobal = Boolean(analysis?.job_snapshot?.title && analysis.job_snapshot.title === job.title);
-                  const jobMatchScore = cachedResult?.match_score ?? (isAnalyzedByGlobal ? analysis.match_score : null);
+                  const jobMatchScore = cachedResult?.match_score ?? null;
                   const hasAnalysis = jobMatchScore !== null;
                   const level = hasAnalysis ? getScoreLevel(jobMatchScore) : null;
                   const isAnalyzingThis = analyzingJobId === job.id;
