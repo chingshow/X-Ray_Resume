@@ -45,6 +45,7 @@ function getAuthToken() {
 
 const emptyResume = {
   full_name: "",
+  gender: "",
   education: "",
   skills: "",
   certifications: "",
@@ -55,6 +56,7 @@ const emptyResume = {
 
 const initialResume = {
   full_name: "王小明",
+  gender: "male",
   education: "國立台灣大學 資訊工程學系 學士",
   skills: "Python, FastAPI, PostgreSQL, Docker",
   certifications: "AWS Certified Cloud Practitioner",
@@ -257,6 +259,32 @@ function Field({
   );
 }
 
+function SelectField({ label, value, onChange, options, disabled = false, required = false, helpText = "" }) {
+  const baseClass =
+    "w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-500 cursor-pointer";
+
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+        {required && <span className="ml-1 text-rose-500">*</span>}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={baseClass}
+      >
+        <option value="">請選擇...</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      {helpText && <span className="mt-1 block text-xs leading-5 text-slate-400">{helpText}</span>}
+    </label>
+  );
+}
+
 function StatusNote({ children, type = "info" }) {
   const styles = {
     info: "border-indigo-100 bg-indigo-50 text-indigo-700",
@@ -369,10 +397,10 @@ export default function XRayResumeJobseekerFrontend() {
   const [messageType, setMessageType] = useState("info");
 
   const completion = useMemo(() => {
-    const required = [resume.full_name, resume.education, resume.skills, resume.expected_salary, resume.target_role];
+    const required = [resume.full_name, resume.gender, resume.education, resume.skills, resume.expected_salary, resume.target_role];
     const filledRequired = required.filter((value) => String(value || "").trim().length > 0).length;
     const optional = [resume.certifications, resume.awards].filter((value) => String(value || "").trim().length > 0).length;
-    return Math.min(100, Math.round(((filledRequired + optional * 0.5) / 6) * 100));
+    return Math.min(100, Math.round(((filledRequired + optional * 0.5) / 7) * 100));
   }, [resume]);
 
   const selectedHrJob = jobList.find((job) => job.id === selectedHrJobId) || jobList[0] || null;
@@ -405,6 +433,7 @@ export default function XRayResumeJobseekerFrontend() {
   function validateResumeForSave() {
     const requiredFields = [
       ["姓名", currentUser?.display_name || resume.full_name],
+      ["性別", resume.gender],
       ["目標職位", resume.target_role],
       ["學歷", resume.education],
       ["技能", resume.skills],
@@ -555,6 +584,7 @@ export default function XRayResumeJobseekerFrontend() {
   function buildResumePayload() {
     return {
       full_name: currentUser?.display_name || resume.full_name,
+      gender: resume.gender || null,
       education: resume.education,
       skills: splitList(resume.skills),
       certifications: splitList(resume.certifications),
@@ -595,6 +625,7 @@ export default function XRayResumeJobseekerFrontend() {
         const r = data.data;
         setResume({
           full_name: r.full_name || displayName,
+          gender: r.gender || "",
           education: r.education || "",
           skills: Array.isArray(r.skills) ? r.skills.join(", ") : r.skills || "",
           certifications: Array.isArray(r.certifications) ? r.certifications.join(", ") : r.certifications || "",
@@ -1237,7 +1268,7 @@ export default function XRayResumeJobseekerFrontend() {
               </div>
               <h1 className="text-3xl font-black">{roleLabel}註冊</h1>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                填寫以下資料建立帳號
+                填寫以下資料建立帳號，密碼會以 SHA-256 加密儲存。
               </p>
             </div>
 
@@ -1457,6 +1488,18 @@ export default function XRayResumeJobseekerFrontend() {
 
             <div className="grid gap-5 md:grid-cols-2">
               <Field label="姓名" value={resume.full_name} onChange={(v) => setResumeField("full_name", v)} disabled helpText="姓名由帳號資料帶入，不開放在履歷頁修改。" />
+              <SelectField
+                label="性別"
+                value={resume.gender}
+                onChange={(v) => setResumeField("gender", v)}
+                options={[
+                  { value: "male", label: "男" },
+                  { value: "female", label: "女" },
+                  { value: "undisclosed", label: "不公開" },
+                ]}
+                disabled={readOnly}
+                required
+              />
               <Field label="目標職位" value={resume.target_role} onChange={(v) => setResumeField("target_role", v)} disabled={readOnly} required />
               <Field label="學歷" value={resume.education} onChange={(v) => setResumeField("education", v)} multiline disabled={readOnly} required />
               <Field label="技能 (,分隔)" value={resume.skills} onChange={(v) => setResumeField("skills", v)} multiline disabled={readOnly} required />

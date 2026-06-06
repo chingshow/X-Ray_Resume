@@ -46,6 +46,7 @@ class LoginRequest(BaseModel):
 
 class ResumeUpsert(BaseModel):
     full_name: Optional[str] = None
+    gender: Optional[str] = None          # "male" | "female" | "undisclosed"
     education: Optional[str] = None
     experience: Optional[List[Dict[str, Any]]] = None
     skills: Optional[List[str]] = None
@@ -857,6 +858,7 @@ def _mock_ai_analysis(resume: dict, job: dict) -> dict:
 
 def _ai_analysis_with_gemini(resume: dict, job: dict) -> dict:
     name = resume.get("full_name", "求職者")
+    gender = resume.get("gender", "")
     education = resume.get("education", "（未填寫）")
     skills = resume.get("skills") or []
     experience = resume.get("experience") or []
@@ -873,7 +875,7 @@ def _ai_analysis_with_gemini(resume: dict, job: dict) -> dict:
     missing_skills = [s for s in required_skills if s not in skills]
 
     prompt = _build_analysis_prompt(
-        name, education, skills, experience, projects,
+        name, gender, education, skills, experience, projects,
         certifications, awards, preferences,
         job_title, required_skills, job_desc, min_exp, salary_range, missing_skills,
     )
@@ -883,17 +885,29 @@ def _ai_analysis_with_gemini(resume: dict, job: dict) -> dict:
 
 
 def _build_analysis_prompt(
-    name, education, skills, experience, projects,
+    name, gender, education, skills, experience, projects,
     certifications, awards, preferences,
     job_title, required_skills, job_desc, min_exp, salary_range, missing_skills,
 ) -> str:
     return f"""
-你是一位資深的人力資源顧問與職涯分析師，專精於台灣軟體業的人才評估。
+你是一位資深人力資源顧問、職涯教練與履歷分析師，熟悉台灣職場、軟體產業與新鮮人/轉職者求職情境。
+
+你的任務不是批評求職者，而是用「專業、溫暖、具體、可行動」的方式，幫助求職者理解：
+1. 自己目前和目標職缺的契合程度
+2. 目前履歷中最有價值的亮點
+3. 影響錄取機率的主要缺口
+4. 下一步最值得補強的技能與行動方向
+5. 這些補強可能對薪資與面試機會造成什麼影響
+
+請避免使用冷冰冰、制式化、過度誇張或打擊人的語氣。
+請不要說「你不適合」，而是改成「目前若補強哪些項目，會更接近此職缺期待」。
+請根據提供的資料分析，不要編造不存在的經歷、證照、公司或學校。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【求職者履歷資料】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 姓名：{name}
+性別：{gender}
 學歷：{education}
 技能：{", ".join(skills) if skills else "（未填寫）"}
 工作經歷：{json.dumps(experience, ensure_ascii=False)}
