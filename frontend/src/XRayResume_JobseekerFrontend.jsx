@@ -77,6 +77,12 @@ const initialLogin = {
   password: "",
 };
 
+const initialRegister = {
+  display_name: "",
+  username: "",
+  password: "",
+};
+
 const featureList = [
   { icon: Target, title: "職缺適配分析", description: "比較履歷與職缺需求，協助判斷目前適配程度。" },
   { icon: Search, title: "技能缺口定位", description: "整理尚未符合的條件，讓履歷優化方向更明確。" },
@@ -285,7 +291,7 @@ function ScoreRing({ score = 0 }) {
   const background = `conic-gradient(rgb(79 70 229) ${normalized * 3.6}deg, rgb(226 232 240) 0deg)`;
 
   return (
-    <div className="relative grid h-40 w-40 place-items-center rounded-full shadow-inner" style={{ background }}>
+    <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full shadow-inner" style={{ background, minWidth: "10rem", minHeight: "10rem" }}>
       <div className="grid h-28 w-28 place-items-center rounded-full bg-white">
         <div className="text-center">
           <div className="text-4xl font-black text-slate-900">{normalized}</div>
@@ -334,6 +340,7 @@ export default function XRayResumeJobseekerFrontend() {
   const [page, setPage] = useState("landing");
   const [selectedRole, setSelectedRole] = useState("jobseeker");
   const [login, setLogin] = useState(initialLogin);
+  const [registerForm, setRegisterForm] = useState(initialRegister);
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthTokenState] = useState(null);
 
@@ -419,6 +426,7 @@ export default function XRayResumeJobseekerFrontend() {
     setAuthTokenState(null);
     setCurrentUser(null);
     setLogin(initialLogin);
+    setRegisterForm(initialRegister);
     setMessage("");
     setJobList([]);
     setApplications([]);
@@ -432,7 +440,22 @@ export default function XRayResumeJobseekerFrontend() {
     setSelectedRole(role);
     setMessage("");
     setLogin(initialLogin);
+    setRegisterForm(initialRegister);
     setPage("login");
+  }
+
+  function goRegister() {
+    setMessage("");
+    setRegisterForm(initialRegister);
+    setPage("register");
+  }
+
+  function handleDemoRegister(event) {
+    event.preventDefault();
+    showMessage(
+      "目前 Demo 版本不開放自行註冊，請使用測試帳號登入。",
+      "info"
+    );
   }
 
   async function handleLogin(event) {
@@ -1071,6 +1094,80 @@ export default function XRayResumeJobseekerFrontend() {
                 onClick={() => setSelectedRole(selectedRole === "hr" ? "jobseeker" : "hr")}
               >
                 切換成{selectedRole === "hr" ? "求職者" : "企業 / HR"}登入
+              </button>
+              <span className="text-slate-300">｜</span>
+              <button
+                className="cursor-pointer font-semibold text-indigo-700 transition hover:text-indigo-900 hover:underline"
+                onClick={goRegister}
+              >
+                註冊帳號
+              </button>
+            </div>
+
+            {message && (
+              <div className="mt-5">
+                <StatusNote type={messageType}>{message}</StatusNote>
+              </div>
+            )}
+          </Card>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (page === "register") {
+    const roleLabel = selectedRole === "hr" ? "企業 / HR" : "求職者";
+
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-xl">
+          <Button variant="ghost" onClick={() => setPage("login")} className="mb-5">
+            <ArrowLeft size={16} /> 返回登入
+          </Button>
+
+          <Card className="p-6 md:p-8">
+            <div className="mb-7 text-center">
+              <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-slate-900 text-white shadow-lg shadow-indigo-100">
+                {selectedRole === "hr" ? <Users size={28} /> : <User size={28} />}
+              </div>
+              <h1 className="text-3xl font-black">{roleLabel}註冊</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                目前先保留註冊介面，Demo 階段暫不開放自行建立帳號。
+              </p>
+            </div>
+
+            <form onSubmit={handleDemoRegister} className="space-y-5">
+              <Field
+                label="姓名"
+                value={registerForm.display_name}
+                onChange={(v) => setRegisterForm((prev) => ({ ...prev, display_name: v }))}
+                placeholder="請輸入姓名"
+              />
+              <Field
+                label="使用者名稱"
+                value={registerForm.username}
+                onChange={(v) => setRegisterForm((prev) => ({ ...prev, username: v }))}
+                placeholder={selectedRole === "hr" ? "例如：hr_account" : "例如：jobseeker3"}
+              />
+              <Field
+                label="密碼"
+                type="password"
+                value={registerForm.password}
+                onChange={(v) => setRegisterForm((prev) => ({ ...prev, password: v }))}
+                placeholder="請輸入密碼"
+              />
+
+              <Button className="w-full py-3 text-base" type="submit">
+                <Lock size={16} /> 建立帳號
+              </Button>
+            </form>
+
+            <div className="mt-5 flex justify-center gap-3 text-sm">
+              <button
+                className="cursor-pointer font-semibold text-indigo-700 transition hover:text-indigo-900 hover:underline"
+                onClick={() => setPage("login")}
+              >
+                已有帳號，返回登入
               </button>
             </div>
 
