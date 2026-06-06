@@ -358,6 +358,10 @@ export default function XRayResumeJobseekerFrontend() {
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [hrReplyDraft, setHrReplyDraft] = useState("");
 
+  // jobAnalysisCache: { [jobId]: { match_score, shap_values, scenario_simulation, priority_skills, skill_gaps, salary_impact, analysis_id } }
+  const [jobAnalysisCache, setJobAnalysisCache] = useState({});
+  const [analyzingJobId, setAnalyzingJobId] = useState(null);
+
   const [apiStatus, setApiStatus] = useState("unknown");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState(null);
@@ -450,12 +454,43 @@ export default function XRayResumeJobseekerFrontend() {
     setPage("register");
   }
 
-  function handleDemoRegister(event) {
+  async function handleDemoRegister(event) {
     event.preventDefault();
-    showMessage(
-      "目前 Demo 版本不開放自行註冊，請使用測試帳號登入。",
-      "info"
-    );
+
+    const { display_name, username, password } = registerForm;
+    if (!display_name.trim() || !username.trim() || !password.trim()) {
+      showMessage("請填寫姓名、使用者名稱與密碼。", "warning");
+      return;
+    }
+    if (password.length < 6) {
+      showMessage("密碼至少需要 6 個字元。", "warning");
+      return;
+    }
+
+    setLoading(true);
+    setLoadingText("建立帳號中...");
+    setMessage("");
+
+    try {
+      await requestJSON("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          display_name: display_name.trim(),
+          username: username.trim(),
+          password: password.trim(),
+          role: selectedRole,
+        }),
+      });
+      showMessage("帳號建立成功！請使用新帳號登入。", "success");
+      setRegisterForm(initialRegister);
+      setPage("login");
+    } catch (error) {
+      console.error("註冊 API 錯誤：", error);
+      showMessage(error.message || "帳號建立失敗，請稍後再試。", "error");
+    } finally {
+      setLoading(false);
+      setLoadingText(null);
+    }
   }
 
   async function handleLogin(event) {
@@ -718,7 +753,7 @@ export default function XRayResumeJobseekerFrontend() {
     setLoadingText("同步職缺與投遞狀態中...");
     setMessage("");
     try {
-      await Promise.all([loadJobs(true), loadFavorites(true), loadMyApplications(true)]);
+      await Promise.all([loadJobs(true), loadFavorites(true), loadMyApplications(true), loadJobAnalysisCache(true)]);
     } finally {
       setLoading(false);
       setLoadingText(null);
@@ -846,6 +881,60 @@ export default function XRayResumeJobseekerFrontend() {
     } finally {
       setLoading(false);
       setLoadingText(null);
+    }
+  }
+
+  // 載入目前使用者所有已分析過的職缺，建立 jobId → result 的快取 map
+  async function loadJobAnalysisCache(silent = true) {
+    try {
+      const data = await requestJSON("/analysis-results");
+      const list = Array.isArray(data) ? data : [];
+      const cache = {};
+      for (const result of list) {
+        if (result.job_id) {
+          // 若同一職缺有多筆，保留最新的（API 已按 created_at desc 排序）
+          if (!cache[result.job_id]) {
+            cache[result.job_id] = result;
+          }
+        }
+      }
+      setJobAnalysisCache(cache);
+    } catch (error) {
+      if (!silent) console.warn("載入分析快取失敗：", error.message);
+    }
+  }
+
+  // 針對特定職缺呼叫 AI 分析（POST /analyze/job/{job_id}）
+  async function analyzeJobMatch(job) {
+    if (analyzingJobId) return; // 避免同時觸發多個分析
+    setAnalyzingJobId(job.id);
+    setMessage("");
+
+    try {
+      const data = await requestJSON(`/analyze/job/${job.id}`, { method: "POST" });
+      setApiStatus("online");
+
+      // 將結果寫入快取
+      setJobAnalysisCache((prev) => ({
+        ...prev,
+        [job.id]: {
+          match_score: data.match_score,
+          shap_values: data.shap_values,
+          explanation: data.scenario_simulation,
+          priority_skills: data.priority_skills || [],
+          skill_gaps: data.skill_gaps || [],
+          salary_impact: data.salary_impact,
+          analysis_id: data.analysis_id,
+        },
+      }));
+
+      const cached = data.cached ? "（使用快取結果）" : "（全新分析完成）";
+      showMessage(`「${job.title}」AI 分析完成 ${cached}，適配分數：${data.match_score}`, "success");
+    } catch (error) {
+      console.error("職缺 AI 分析失敗：", error);
+      showMessage(`分析失敗：${error.message}`, "error");
+    } finally {
+      setAnalyzingJobId(null);
     }
   }
 
@@ -1132,7 +1221,7 @@ export default function XRayResumeJobseekerFrontend() {
               </div>
               <h1 className="text-3xl font-black">{roleLabel}註冊</h1>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                目前先保留註冊介面，Demo 階段暫不開放自行建立帳號。
+                填寫以下資料建立帳號，密碼會以 SHA-256 加密儲存。
               </p>
             </div>
 
@@ -1157,8 +1246,8 @@ export default function XRayResumeJobseekerFrontend() {
                 placeholder="請輸入密碼"
               />
 
-              <Button className="w-full py-3 text-base" type="submit">
-                <Lock size={16} /> 建立帳號
+              <Button className="w-full py-3 text-base" type="submit" disabled={loading}>
+                <Lock size={16} /> {loading ? "建立中..." : "建立帳號"}
               </Button>
             </form>
 
@@ -1531,16 +1620,22 @@ export default function XRayResumeJobseekerFrontend() {
                 jobList.map((job) => {
                   const isFavorite = favoriteJobIds.includes(job.id);
                   const hasApplied = applications.some((item) => item.jobId === job.id);
-                  const isAnalyzedJob = Boolean(analysis?.job_snapshot?.title && analysis.job_snapshot.title === job.title);
-                  const level = isAnalyzedJob ? getScoreLevel(analysis.match_score) : null;
+
+                  // 優先從 per-job 快取取分析結果；fallback 到舊的全域 analysis（相同職缺標題）
+                  const cachedResult = jobAnalysisCache[job.id];
+                  const isAnalyzedByGlobal = Boolean(analysis?.job_snapshot?.title && analysis.job_snapshot.title === job.title);
+                  const jobMatchScore = cachedResult?.match_score ?? (isAnalyzedByGlobal ? analysis.match_score : null);
+                  const hasAnalysis = jobMatchScore !== null;
+                  const level = hasAnalysis ? getScoreLevel(jobMatchScore) : null;
+                  const isAnalyzingThis = analyzingJobId === job.id;
 
                   return (
                     <div key={job.id} className="rounded-3xl border border-slate-100 bg-white/75 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
                       <div className="mb-4 flex items-center justify-between gap-3">
-                        {isAnalyzedJob ? (
+                        {hasAnalysis ? (
                           <>
                             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${level.className}`}>{level.label}</span>
-                            <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{analysis.match_score}</span>
+                            <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-black text-white">{jobMatchScore}</span>
                           </>
                         ) : (
                           <>
@@ -1562,10 +1657,39 @@ export default function XRayResumeJobseekerFrontend() {
                       <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-600">
                         {job.salary_range || "薪資未提供"} · 最低年資 {job.min_experience ?? 0} 年
                       </div>
+
+                      {/* 顯示分析摘要（若已分析） */}
+                      {hasAnalysis && cachedResult?.explanation && (
+                        <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">
+                          <div className="mb-1 text-xs font-bold text-indigo-600">AI 分析摘要</div>
+                          <p className="line-clamp-3 text-xs leading-5 text-slate-700">{cachedResult.explanation}</p>
+                          {(cachedResult.skill_gaps || []).length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              <span className="text-xs font-semibold text-amber-700">缺口：</span>
+                              {cachedResult.skill_gaps.slice(0, 4).map((s) => (
+                                <span key={s} className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Button variant={isFavorite ? "soft" : "secondary"} onClick={() => toggleFavorite(job.id)}>
                           {isFavorite ? "已加入心儀" : "加入心儀"}
                         </Button>
+
+                        {/* AI 分析按鈕：未分析時顯示；已分析時顯示「重新分析」 */}
+                        <Button
+                          variant={hasAnalysis ? "ghost" : "soft"}
+                          onClick={() => analyzeJobMatch(job)}
+                          disabled={isAnalyzingThis || Boolean(analyzingJobId)}
+                          className={hasAnalysis ? "text-xs" : ""}
+                        >
+                          <BarChart3 size={14} />
+                          {isAnalyzingThis ? "AI 分析中..." : hasAnalysis ? "重新分析" : "AI 分析此職缺"}
+                        </Button>
+
                         <Button onClick={() => applyToJob(job)} disabled={hasApplied || loading}>
                           <Send size={16} /> {hasApplied ? "已投遞" : "確認投遞"}
                         </Button>

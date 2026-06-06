@@ -324,7 +324,54 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
     target_role = preferences.get("target_role", "")
     job = _match_job_by_role(target_role, all_jobs)
 
-    # 3. AI analysis
+    # 3. Check cache: if analysis exists and resume hasn't been updated since, return it directly
+    resume_updated_at = resume.get("updated_at") or resume.get("created_at")
+    try:
+        cached_resp = (
+            supabase.table("analysis_results")
+            .select("*")
+            .eq("resume_id", resume["id"])
+            .eq("job_id", job["id"])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        cached = cached_resp.data[0] if cached_resp.data else None
+    except Exception:
+        cached = None
+
+    if cached and resume_updated_at:
+        analysis_created_at = cached.get("created_at")
+        if analysis_created_at:
+            from datetime import datetime as _dt
+            try:
+                def _parse(ts):
+                    return _dt.fromisoformat(str(ts).replace("Z", "+00:00"))
+                if _parse(analysis_created_at) >= _parse(resume_updated_at):
+                    # Return cached result without calling AI
+                    return {
+                        "cached": True,
+                        "analysis_id": cached["id"],
+                        "resume_snapshot": {
+                            "full_name": resume.get("full_name"),
+                            "education": resume.get("education"),
+                            "skills": resume.get("skills"),
+                        },
+                        "job_snapshot": {
+                            "title": job.get("title"),
+                            "required_skills": job.get("required_skills"),
+                        },
+                        "match_score": cached.get("match_score"),
+                        "shap_values": cached.get("shap_values") or {},
+                        "scenario_simulation": cached.get("explanation") or "",
+                        "salary_impact": "",
+                        "priority_skills": cached.get("priority_skills") or [],
+                        "skill_gaps": cached.get("skill_gaps") or [],
+                    }
+            except Exception as e:
+                print(f"[WARNING] 快取時間比較失敗，重新分析: {e}")
+
+    # 4. AI analysis (cache miss or resume updated)
     try:
         ai_result = _ai_analysis_with_gemini(resume, job)
     except Exception as e:
@@ -917,3 +964,246 @@ def _match_job_by_role(target_role: str, jobs: list) -> dict:
         if score > best_score:
             best_score, best_job = score, job
     return best_job
+
+# ===========================================================================
+# Register route  (需求1：SHA-256 密碼)
+# ===========================================================================
+
+class RegisterRequest(BaseModel):
+    display_name: str
+    username: str
+    password: str
+    role: Optional[str] = "jobseeker"   # "jobseeker" | "hr"
+
+
+@app.post("/auth/register", tags=["🔐 Auth"], status_code=201)
+def register(body: RegisterRequest):
+    """
+    Register a new user.
+    Password is stored as SHA-256 hash — consistent with the login flow.
+    """
+    if body.role not in ("jobseeker", "hr"):
+        raise HTTPException(status_code=400, detail="role 必須是 jobseeker 或 hr")
+
+    username = body.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="使用者名稱不能為空")
+
+    # Check duplicate username
+    try:
+        dup = (
+            supabase.table("users")
+            .select("id")
+            .eq("username", username)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"資料庫查詢失敗: {str(e)}")
+
+    if dup.data:
+        raise HTTPException(status_code=409, detail="此使用者名稱已被使用，請換一個")
+
+    pw_hash = _hash_password(body.password)
+
+    try:
+        resp = supabase.table("users").insert({
+            "username": username,
+            "display_name": body.display_name.strip() or username,
+            "password_hash": pw_hash,
+            "role": body.role,
+        }).execute()
+        if not resp.data:
+            raise HTTPException(status_code=400, detail="建立帳號失敗")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"伺服器錯誤: {str(e)}")
+
+    user = resp.data[0]
+    return {
+        "message": "帳號建立成功",
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "display_name": user["display_name"],
+            "role": user["role"],
+        },
+    }
+
+
+# ===========================================================================
+# Job-specific analysis route  (需求3：針對特定職缺進行分析)
+# ===========================================================================
+
+@app.post("/analyze/job/{job_id}", tags=["📊 分析"])
+def analyze_resume_for_job(
+    job_id: str,
+    user: Dict = Depends(get_current_user),
+):
+    """
+    Run AI analysis for the current user's resume against a specific job posting.
+    - If an analysis already exists and the resume has NOT been updated since, return the cached result.
+    - Otherwise, run a fresh AI analysis and upsert the result.
+    """
+    if user.get("role") != "jobseeker":
+        raise HTTPException(status_code=403, detail="只有求職者可以執行分析")
+
+    # 1. Fetch resume
+    try:
+        resume_resp = (
+            supabase.table("resumes")
+            .select("*")
+            .eq("user_id", user["id"])
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得履歷失敗: {str(e)}")
+
+    if not resume_resp.data:
+        raise HTTPException(status_code=404, detail="請先填寫並儲存履歷再執行分析")
+
+    resume = resume_resp.data[0]
+
+    # 2. Fetch the target job
+    try:
+        job_resp = (
+            supabase.table("job_postings")
+            .select("*")
+            .eq("id", job_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取得職缺失敗: {str(e)}")
+
+    if not job_resp.data:
+        raise HTTPException(status_code=404, detail="職缺不存在或已關閉")
+
+    job = job_resp.data[0]
+
+    # 3. Check if a cached analysis exists and is still valid
+    #    (i.e., analysis was created AFTER the resume was last updated)
+    try:
+        existing_resp = (
+            supabase.table("analysis_results")
+            .select("*")
+            .eq("resume_id", resume["id"])
+            .eq("job_id", job_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        existing_resp = type("R", (), {"data": []})()
+
+    cached = existing_resp.data[0] if existing_resp.data else None
+    resume_updated_at = resume.get("updated_at") or resume.get("created_at")
+
+    if cached:
+        analysis_created_at = cached.get("created_at")
+        # Return cache when analysis is newer than the last resume update
+        if resume_updated_at and analysis_created_at:
+            from datetime import datetime
+            try:
+                # Normalize both timestamps for comparison
+                def _parse_ts(ts):
+                    ts = str(ts).replace("Z", "+00:00")
+                    return datetime.fromisoformat(ts)
+
+                if _parse_ts(analysis_created_at) >= _parse_ts(resume_updated_at):
+                    return {
+                        "cached": True,
+                        "analysis_id": cached["id"],
+                        "resume_snapshot": {
+                            "full_name": resume.get("full_name"),
+                            "education": resume.get("education"),
+                            "skills": resume.get("skills"),
+                        },
+                        "job_snapshot": {
+                            "title": job.get("title"),
+                            "required_skills": job.get("required_skills"),
+                        },
+                        "match_score": cached.get("match_score"),
+                        "shap_values": cached.get("shap_values"),
+                        "scenario_simulation": cached.get("explanation"),
+                        "salary_impact": None,
+                        "priority_skills": cached.get("priority_skills") or [],
+                        "skill_gaps": cached.get("skill_gaps") or [],
+                    }
+            except Exception as e:
+                print(f"[WARNING] 時間戳比較失敗，將重新分析: {e}")
+
+    # 4. Run fresh AI analysis
+    try:
+        ai_result = _ai_analysis_with_gemini(resume, job)
+    except Exception as e:
+        print(f"[WARNING] Gemini API 失敗，降級為 mock: {e}")
+        ai_result = _mock_ai_analysis(resume, job)
+
+    # 5. Look up application_id (if applied)
+    application_id = None
+    try:
+        app_resp = (
+            supabase.table("applications")
+            .select("id")
+            .eq("resume_id", resume["id"])
+            .eq("job_id", job_id)
+            .limit(1)
+            .execute()
+        )
+        if app_resp.data:
+            application_id = app_resp.data[0]["id"]
+    except Exception as e:
+        print(f"[WARNING] 查詢 application_id 失敗: {e}")
+
+    # 6. Upsert analysis result
+    analysis_payload = {
+        "resume_id": resume["id"],
+        "job_id": job_id,
+        "match_score": ai_result["match_score"],
+        "skill_gaps": [p["skill"] for p in ai_result["priority_skills"]],
+        "explanation": ai_result["scenario_simulation"],
+        "shap_values": ai_result["shap_values"],
+        "salary_impact": ai_result["salary_impact"],
+        "priority_skills": ai_result["priority_skills"],
+    }
+    if application_id:
+        analysis_payload["application_id"] = application_id
+
+    try:
+        if cached:
+            save_resp = (
+                supabase.table("analysis_results")
+                .update(analysis_payload)
+                .eq("id", cached["id"])
+                .execute()
+            )
+        else:
+            save_resp = (
+                supabase.table("analysis_results")
+                .insert(analysis_payload)
+                .execute()
+            )
+    except Exception as e:
+        print(f"[WARNING] 儲存分析結果失敗: {e}")
+        save_resp = type("R", (), {"data": [{"id": None}]})()
+
+    analysis_id = save_resp.data[0]["id"] if save_resp.data else None
+
+    return {
+        "cached": False,
+        "analysis_id": analysis_id,
+        "resume_snapshot": {
+            "full_name": resume.get("full_name"),
+            "education": resume.get("education"),
+            "skills": resume.get("skills"),
+        },
+        "job_snapshot": {
+            "title": job.get("title"),
+            "required_skills": job.get("required_skills"),
+        },
+        **ai_result,
+    }
