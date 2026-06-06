@@ -520,6 +520,7 @@ export default function XRayResumeJobseekerFrontend() {
   function buildJobPayload(job = jobRequirement) {
     return {
       title: job.title,
+      company: job.company || null, // 打包公司名稱，沒填就給 null
       required_skills: Array.isArray(job.required_skills) ? job.required_skills : splitList(job.required_skills),
       salary_range: job.salary_range,
       min_experience: Number(job.min_experience) || 0,
@@ -698,7 +699,7 @@ export default function XRayResumeJobseekerFrontend() {
       });
 
       setApiStatus("online");
-      const newJob = { ...data.data, match_score: data.data.match_score ?? 65, application_count: 0 };
+      const newJob = { ...data.data, company: data.data.company || (job || jobRequirement).company, match_score: data.data.match_score ?? 65, application_count: 0 };
       setJobList((prev) => {
         // avoid duplicates
         const exists = prev.some((j) => j.id === newJob.id);
