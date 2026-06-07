@@ -6,6 +6,7 @@ import secrets
 import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, status, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -222,6 +223,7 @@ def upsert_resume(
 
     data = body.model_dump(exclude_unset=True)
     data["user_id"] = user["id"]
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     try:
         # Check if resume already exists for this user
@@ -327,6 +329,7 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
 
     # 3. Check cache: if analysis exists and resume hasn't been updated since, return it directly
     resume_updated_at = resume.get("updated_at") or resume.get("created_at")
+
     try:
         cached_resp = (
             supabase.table("analysis_results")
@@ -342,13 +345,16 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
         cached = None
 
     if cached and resume_updated_at:
-        analysis_created_at = cached.get("created_at")
-        if analysis_created_at:
+        analysis_time = cached.get("updated_at") or cached.get("created_at")
+        if analysis_time:
             from datetime import datetime as _dt
             try:
-                def _parse(ts):
-                    return _dt.fromisoformat(str(ts).replace("Z", "+00:00"))
-                if _parse(analysis_created_at) >= _parse(resume_updated_at):
+                # 暴力強健解析法，防禦所有 Supabase 奇怪的時區與空格格式
+                def _safe_parse(ts):
+                    clean_ts = str(ts).replace(" ", "T")[:19]
+                    return _dt.fromisoformat(clean_ts)
+
+                if _safe_parse(analysis_time) >= _safe_parse(resume_updated_at):
                     # Return cached result without calling AI
                     return {
                         "cached": True,
@@ -366,7 +372,7 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
                         "match_score": cached.get("match_score"),
                         "shap_values": cached.get("shap_values") or {},
                         "scenario_simulation": cached.get("explanation") or "",
-                        "salary_impact": "",
+                        "salary_impact": cached.get("salary_impact") or "",
                         "priority_skills": cached.get("priority_skills") or [],
                         "skill_gaps": cached.get("skill_gaps") or [],
                     }
@@ -380,8 +386,7 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
         print(f"[WARNING] Gemini API 失敗，降級為 mock: {e}")
         ai_result = _mock_ai_analysis(resume, job)
 
-    # 4. Save analysis result (upsert by resume_id + job_id)
-    #    Also look up the application_id so HR can JOIN directly.
+    # 4. Save analysis result
     application_id = None
     try:
         app_resp = (
@@ -406,6 +411,7 @@ def analyze_resume(user: Dict = Depends(get_current_user)):
         "shap_values": ai_result["shap_values"],
         "salary_impact": ai_result["salary_impact"],
         "priority_skills": ai_result["priority_skills"],
+        "updated_at": datetime.now(timezone.utc).isoformat()  # <--- GET API 也加上了！
     }
     if application_id:
         analysis_payload["application_id"] = application_id
@@ -1141,7 +1147,8 @@ def analyze_resume_for_job(
     job = job_resp.data[0]
 
     # 3. Check if a cached analysis exists and is still valid
-    #    (i.e., analysis was created AFTER the resume was last updated)
+    resume_updated_at = resume.get("updated_at") or resume.get("created_at")  # <--- 加入這行！
+
     try:
         existing_resp = (
             supabase.table("analysis_results")
@@ -1156,20 +1163,21 @@ def analyze_resume_for_job(
         existing_resp = type("R", (), {"data": []})()
 
     cached = existing_resp.data[0] if existing_resp.data else None
-    resume_updated_at = resume.get("updated_at") or resume.get("created_at")
 
-    if cached:
-        analysis_created_at = cached.get("created_at")
-        # Return cache when analysis is newer than the last resume update
-        if resume_updated_at and analysis_created_at:
-            from datetime import datetime
+    if cached and resume_updated_at:
+        # 優先抓取分析結果最後更新的時間，如果沒有才用建立時間
+        analysis_time = cached.get("updated_at") or cached.get("created_at")
+
+        if analysis_time:
+            from datetime import datetime as _dt
             try:
-                # Normalize both timestamps for comparison
-                def _parse_ts(ts):
-                    ts = str(ts).replace("Z", "+00:00")
-                    return datetime.fromisoformat(ts)
+                # 暴力強健解析法
+                def _safe_parse(ts):
+                    clean_ts = str(ts).replace(" ", "T")[:19]
+                    return _dt.fromisoformat(clean_ts)
 
-                if _parse_ts(analysis_created_at) >= _parse_ts(resume_updated_at):
+                # 正確拿 分析時間 去比對 履歷時間
+                if _safe_parse(analysis_time) >= _safe_parse(resume_updated_at):
                     return {
                         "cached": True,
                         "analysis_id": cached["id"],
@@ -1184,9 +1192,9 @@ def analyze_resume_for_job(
                             "required_skills": job.get("required_skills"),
                         },
                         "match_score": cached.get("match_score"),
-                        "shap_values": cached.get("shap_values"),
-                        "scenario_simulation": cached.get("explanation"),
-                        "salary_impact": None,
+                        "shap_values": cached.get("shap_values") or {},
+                        "scenario_simulation": cached.get("explanation") or "",
+                        "salary_impact": cached.get("salary_impact") or "",
                         "priority_skills": cached.get("priority_skills") or [],
                         "skill_gaps": cached.get("skill_gaps") or [],
                     }
@@ -1217,16 +1225,20 @@ def analyze_resume_for_job(
         print(f"[WARNING] 查詢 application_id 失敗: {e}")
 
     # 6. Upsert analysis result
+
     analysis_payload = {
         "resume_id": resume["id"],
-        "job_id": job_id,
+        "job_id": job["id"],  # 另一支 API 是 job_id
         "match_score": ai_result["match_score"],
         "skill_gaps": [p["skill"] for p in ai_result["priority_skills"]],
         "explanation": ai_result["scenario_simulation"],
         "shap_values": ai_result["shap_values"],
         "salary_impact": ai_result["salary_impact"],
         "priority_skills": ai_result["priority_skills"],
-    }
+
+        # 加上這一行！確保每次分析都會刷新時間！
+        "updated_at": datetime.now(timezone.utc).isoformat()
+        }
     if application_id:
         analysis_payload["application_id"] = application_id
 
