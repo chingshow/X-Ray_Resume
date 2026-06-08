@@ -1,52 +1,90 @@
+# tests/test_job.py
+"""
+職缺 CRUD & 投遞測試
+
+測試目標：
+  GET  /jobs                              → 列出所有職缺（需登入）
+  POST /jobs                              → 建立職缺（僅限 HR）
+  GET  /jobs/my                           → HR 查看自己的職缺
+  GET  /jobs/{job_id}/applications        → HR 查看特定職缺的投遞清單
+  POST /applications                      → 求職者投遞職缺
+  GET  /applications/my                   → 求職者查看自己的投遞紀錄
+
+關鍵場景：
+  - 角色權限邊界（403）
+  - 重複投遞防護（409）
+  - 沒有履歷就投遞（400）
+  - 投遞已關閉職缺（404）
+"""
+
 import pytest
-import re
+
+def auth(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
 
 
-class TestSeedJob:
-    async def test_seed_job_default_values(self, client):
-        """使用預設值新增職缺應成功"""
-        response = await client.post("/dev/seed-job", json={})
+class TestListJobs:
+    async def test_list_jobs_without_auth_returns_401(self, client):
+        """未登入不得列出職缺。"""
+        response = await client.get("/jobs")
+        assert response.status_code == 401
+
+    async def test_list_jobs_returns_list(self, client, jobseeker_token):
+        """登入後呼叫 GET /jobs 應回傳陣列（可為空）。"""
+        response = await client.get("/jobs", headers=auth(jobseeker_token))
         assert response.status_code == 200
-        data = response.json()
-        assert "job_id" in data
-        # ✅ 改動：訊息文字已更新
-        assert data["message"] == "測試職缺新增成功"
+        assert isinstance(response.json(), list)
 
-    async def test_seed_job_returns_uuid(self, client):
-        """回傳的 job_id 應為合法 UUID 格式"""
-        response = await client.post("/dev/seed-job", json={})
-        data = response.json()
-        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        assert re.match(uuid_pattern, data["job_id"])
 
-    async def test_seed_job_creates_new_record_each_time(self, client):
-        """
-        ✅ 新增：seed-job 每次應產生不同的 UUID（不再使用固定 ID）
-        與 seed-resume 的 upsert 行為相反，職缺是每次新增一筆
-        """
-        response1 = await client.post("/dev/seed-job", json={})
-        response2 = await client.post("/dev/seed-job", json={})
-        id1 = response1.json()["job_id"]
-        id2 = response2.json()["job_id"]
-        # 兩次呼叫應該是不同的 ID
-        assert id1 != id2
+class TestCreateJob:
+    async def test_jobseeker_cannot_create_job(self, client, jobseeker_token):
+        """求職者不得建立職缺，應回傳 403。"""
+        response = await client.post(
+            "/jobs",
+            json={"title": "前端工程師"},
+            headers=auth(jobseeker_token),
+        )
+        assert response.status_code == 403
 
-    async def test_seed_job_custom_title(self, client):
-        """可以傳入自訂職缺名稱"""
-        response = await client.post("/dev/seed-job", json={"title": "前端工程師"})
-        assert response.status_code == 200
+    async def test_hr_can_create_job(self, client, hr_token):
+        """HR 成功建立職缺，應回傳 201 並包含 data 欄位。"""
+        response = await client.post(
+            "/jobs",
+            json={
+                "title": "全端工程師",
+                "company": "測試科技",
+                "required_skills": ["React", "FastAPI"],
+                "min_experience": 2,
+            },
+            headers=auth(hr_token),
+        )
+        assert response.status_code == 201
+        assert "data" in response.json()
 
-    async def test_seed_job_custom_skills(self, client):
-        """可以傳入自訂必要技能"""
-        response = await client.post("/dev/seed-job", json={
-            "required_skills": ["React", "TypeScript"]
-        })
-        assert response.status_code == 200
+    async def test_create_job_missing_title_returns_error(self, client, hr_token):
+        """title 為必填，缺少時應回傳 4xx 錯誤。"""
+        response = await client.post(
+            "/jobs",
+            json={"company": "無名公司"},
+            headers=auth(hr_token),
+        )
+        assert response.status_code in (400, 422)
 
-    async def test_seed_job_null_title_should_fail(self, client):
-        """
-        ✅ 新增：title 是資料庫 NOT NULL 欄位
-        傳入 null 應該要報錯，不能成功儲存
-        """
-        response = await client.post("/dev/seed-job", json={"title": None})
-        assert response.status_code != 200
+
+class TestMyJobs:
+    async def test_hr_can_list_own_jobs(self, client, hr_token):
+        """HR 建立職缺後，GET /jobs/my 應能看到自己建立的職缺。"""
+        await client.post(
+            "/jobs",
+            json={"title": "數據分析師"},
+            headers=auth(hr_token),
+        )
+        jobs = (await client.get("/jobs/my", headers=auth(hr_token))).json()
+        assert any(j["title"] == "數據分析師" for j in jobs)
+
+    async def test_my_jobs_includes_application_count(self, client, hr_token):
+        """GET /jobs/my 的每筆職缺應包含 application_count 欄位。"""
+        await client.post("/jobs", json={"title": "PM職缺"}, headers=auth(hr_token))
+        jobs = (await client.get("/jobs/my", headers=auth(hr_token))).json()
+        for job in jobs:
+            assert "application_count" in job

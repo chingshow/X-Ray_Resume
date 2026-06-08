@@ -1,106 +1,98 @@
+# tests/test_resume.py
+"""
+履歷 CRUD 測試
+
+測試目標：
+  POST /resume        → 新增 / 更新履歷（僅限 jobseeker）
+  GET  /resume/me     → 取得自己的履歷
+
+關鍵場景：
+  - 未登入 → 401
+  - HR 角色嘗試建立履歷 → 403
+  - 成功建立、更新履歷
+  - upsert 行為：同一 user 呼叫兩次只有一筆資料
+  - 回應結構完整性
+"""
+
 import pytest
 
+def auth(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
 
-class TestSeedResume:
-    async def test_seed_resume_default_values(self, client):
-        """使用預設值初始化履歷應成功"""
-        response = await client.post("/dev/seed-resume", json={})
+
+class TestResumeUpsert:
+    async def test_upsert_resume_without_auth_returns_401(self, client):
+        """未帶 Token 呼叫 POST /resume 應回傳 401。"""
+        response = await client.post("/resume", json={"full_name": "無授權者"})
+        assert response.status_code == 401
+
+    async def test_hr_cannot_create_resume(self, client, hr_token):
+        """HR 角色不允許建立履歷，應回傳 403。"""
+        response = await client.post(
+            "/resume",
+            json={"full_name": "HR 帳號"},
+            headers=auth(hr_token),
+        )
+        assert response.status_code == 403
+
+    async def test_jobseeker_can_create_resume(self, client, jobseeker_token):
+        """求職者成功建立履歷，應回傳 200 並包含 data 欄位。"""
+        response = await client.post(
+            "/resume",
+            json={"full_name": "王小明", "education": "國立台灣大學"},
+            headers=auth(jobseeker_token),
+        )
         assert response.status_code == 200
-        data = response.json()
-        assert "resume_id" in data
-        # ✅ 改動一：訊息文字已更新
-        assert data["message"] == "測試履歷初始化/覆蓋成功"
+        assert "data" in response.json()
 
-    async def test_seed_resume_returns_fixed_uuid(self, client):
-        """
-        ✅ 新增：seed-resume 現在永遠回傳固定的 MOCK_RESUME_ID
-        確認 upsert 邏輯正確，不是每次產生新的 UUID
-        """
-        response1 = await client.post("/dev/seed-resume", json={})
-        response2 = await client.post("/dev/seed-resume", json={})
-        id1 = response1.json()["resume_id"]
-        id2 = response2.json()["resume_id"]
-        # 兩次呼叫應該回傳同一個 ID
-        assert id1 == id2
-        # 確認是固定的 MOCK_RESUME_ID
-        assert id1 == "11111111-1111-1111-1111-111111111111"
+    async def test_resume_upsert_is_idempotent(self, client, jobseeker_token):
+        """同一求職者建立兩次履歷，應 upsert（只有一筆），不應產生重複資料。"""
+        headers = auth(jobseeker_token)
+        await client.post("/resume", json={"full_name": "初版姓名"}, headers=headers)
+        await client.post("/resume", json={"full_name": "更新姓名"}, headers=headers)
 
-    async def test_seed_resume_custom_name(self, client):
-        """可以傳入自訂姓名"""
-        response = await client.post("/dev/seed-resume", json={"full_name": "李小華"})
-        assert response.status_code == 200
+        resp = await client.get("/resume/me", headers=headers)
+        assert resp.status_code == 200
+        # 只有一筆，且是最新版本
+        assert resp.json()["data"]["full_name"] == "更新姓名"
 
-    async def test_seed_resume_empty_skills(self, client):
-        """技能清單可以是空陣列"""
-        response = await client.post("/dev/seed-resume", json={"skills": []})
-        assert response.status_code == 200
+    async def test_resume_partial_update_preserves_other_fields(self, client, jobseeker_token):
+        """部分更新履歷時，未更新的欄位應保留原值。"""
+        headers = auth(jobseeker_token)
+        await client.post("/resume", json={
+            "full_name": "李小華",
+            "education": "政治大學",
+            "skills": ["Python", "FastAPI"],
+        }, headers=headers)
 
-    async def test_seed_resume_overwrites_previous(self, client):
-        """
-        ✅ 新增：第二次 seed 應該覆蓋第一次的資料，不是新增一筆
-        確認 upsert 機制正確運作
-        """
-        # 第一次：王小明
-        await client.post("/dev/seed-resume", json={"full_name": "王小明"})
-        # 第二次：李小華（覆蓋）
-        await client.post("/dev/seed-resume", json={"full_name": "李小華"})
+        # 只更新 full_name
+        await client.post("/resume", json={"full_name": "李大華"}, headers=headers)
 
-        # 跑分析，確認用的是最新的李小華
-        await client.post("/dev/seed-job", json={})
-        data = (await client.get("/analyze")).json()
-        assert data["resume_snapshot"]["full_name"] == "李小華"
+        data = (await client.get("/resume/me", headers=headers)).json()["data"]
+        assert data["full_name"] == "李大華"
+        # education 與 skills 應仍然存在（不被清空）
+        assert data.get("education") == "政治大學"
 
 
-class TestCreateResume:
-    async def test_post_resume_minimal(self, client):
-        """
-        ✅ 改動：POST /resume 狀態碼從 201 改為 200（upsert 語意）
-        """
-        response = await client.post("/resume", json={"full_name": "測試用戶"})
-        assert response.status_code == 200
+class TestGetMyResume:
+    async def test_get_resume_without_auth_returns_401(self, client):
+        """未登入呼叫 GET /resume/me 應回傳 401。"""
+        response = await client.get("/resume/me")
+        assert response.status_code == 401
 
-    async def test_post_resume_message(self, client):
-        """✅ 新增：確認新的回傳訊息文字"""
-        response = await client.post("/resume", json={"full_name": "測試用戶"})
-        data = response.json()
-        assert data["message"] == "履歷更新成功！(已覆蓋原有資料)"
+    async def test_get_resume_returns_saved_data(self, client, jobseeker_token):
+        """建立後取得，應拿回相同的資料。"""
+        headers = auth(jobseeker_token)
+        await client.post("/resume", json={
+            "full_name": "陳測試",
+            "skills": ["React", "TypeScript"],
+        }, headers=headers)
 
-    async def test_post_resume_full_payload(self, client):
-        """POST /resume 完整欄位應成功並回傳資料"""
-        payload = {
-            "full_name": "陳大明",
-            "education": "台灣大學 資工系",
-            "skills": ["Python", "Docker"],
-            "certifications": ["AWS"],
-            "awards": [],
-            "completion_rate": 75,
-            "preferences": {"expected_salary": "80萬"}
-        }
-        response = await client.post("/resume", json=payload)
-        assert response.status_code == 200
-        data = response.json()
-        assert "data" in data
+        data = (await client.get("/resume/me", headers=headers)).json()["data"]
+        assert data["full_name"] == "陳測試"
+        assert "React" in data["skills"]
 
-    async def test_post_resume_empty_body(self, client):
-        """POST /resume 空白 body 應成功（所有欄位 Optional）"""
-        response = await client.post("/resume", json={})
-        assert response.status_code == 200
-
-    async def test_post_resume_uses_fixed_id(self, client):
-        """
-        ✅ 新增：確認 POST /resume 永遠使用固定的 MOCK_RESUME_ID
-        不管呼叫幾次，資料庫都只有一筆履歷
-        """
-        await client.post("/resume", json={"full_name": "第一次"})
-        await client.post("/resume", json={"full_name": "第二次"})
-        response = await client.post("/resume", json={"full_name": "第三次"})
-        data = response.json()
-        assert data["data"]["id"] == "11111111-1111-1111-1111-111111111111"
-
-    async def test_post_resume_invalid_completion_rate(self, client):
-        """
-        ✅ 新增：completion_rate 傳入字串應回傳 422
-        確認 Pydantic 型別驗證有效
-        """
-        response = await client.post("/resume", json={"completion_rate": "不是數字"})
-        assert response.status_code == 422
+    async def test_hr_cannot_access_resume_me(self, client, hr_token):
+        """HR 角色不應能存取 /resume/me，應回傳 403。"""
+        response = await client.get("/resume/me", headers=auth(hr_token))
+        assert response.status_code == 403
